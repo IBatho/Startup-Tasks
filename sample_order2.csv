@@ -1,0 +1,4 @@
+order_id,route
+1,A->B->D
+2,B->C->A
+3,B->C->A
