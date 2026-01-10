@@ -30,7 +30,6 @@ def choose_action(state, Q, epsilon:float) -> int:
     Q[s, a] = Q[s, a] + alpha * (r + gamma * max_next - Q[s, a])
 
 def step(state: GridState, action: int) -> tuple[GridState, float,bool]:
-    done = False
     if state == end:
         done = True
         return state, 0.0, done  # already at goal
@@ -46,7 +45,7 @@ def step(state: GridState, action: int) -> tuple[GridState, float,bool]:
         next_state = state  # invalid move, stay in place
         reward = -1.0
         done = True
-        return next_state, reward, done:
+        return next_state, reward, done
     elif next_state == end:
         reward = 1
         done = True
@@ -56,3 +55,11 @@ def step(state: GridState, action: int) -> tuple[GridState, float,bool]:
         done = False
         return next_state, reward, done
         
+for episode in range(10):
+    state = (0,0)
+    done = False
+    while not done:
+        action = choose_action(state, Q, 0.1)
+        next_state, reward, done = step(state, action)
+        print(f"State: {state}, Action: {action}, Reward: {reward}, Next State: {next_state}, Done: {done}")
+        state = next_state
