@@ -6,7 +6,7 @@ end = (2, 2)  # goal position
 
 def step(state: GridState, action: int) -> tuple[GridState, float,bool]:
     done = False
-    if state == (3,3):
+    if state == (2,2):
         return state, 0.0, True  # already at goal
     start_v = (end[0] - state[0], end[1] - state[1])
     start_s = (start_v[0]**2 + start_v[1]**2)**0.5
