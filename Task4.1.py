@@ -1,4 +1,6 @@
 import random
+import numpy as np
+import matplotlib.pyplot as plt
 
 GridState = tuple[int, int]  # (row, col) position in the grid
 
@@ -15,7 +17,7 @@ def get_Q(Q, state, action):
 
 def choose_action(state, Q, epsilon:float) -> int:
     if random.random() < epsilon:   # takes a random action not based on Q values
-        print("Exploring")
+        #print("Exploring")
         return random.randint(0,3)
     else:                           # takes the action based on which action at that state has the highest Q value
         best_a = 0
@@ -25,7 +27,7 @@ def choose_action(state, Q, epsilon:float) -> int:
             if q > best_q:
                 best_q = q
                 best_a = a
-        print("Exploiting")
+        #print("Exploiting")
         return best_a
 
 def step(state: GridState, action: int) -> tuple[GridState, float,bool]:
@@ -69,7 +71,7 @@ for episode in range(1500):
     while not done:
         action = choose_action(state, Q, epsilon)
         next_state, reward, done = step(state, action)
-        print(f"State: {state}, Action: {action}, Reward: {reward}, Next State: {next_state}, Done: {done}")
+        #print(f"State: {state}, Action: {action}, Reward: {reward}, Next State: {next_state}, Done: {done}")
         i+=1
         max_next = max(get_Q(Q, next_state, a) for a in range(4))
 
@@ -108,3 +110,13 @@ while not done:
     state = next_state
 path.append(end)
 print("Chosen Path:", path)
+
+step_counter = np.array(steps)
+x = step_counter[:,0]
+y = step_counter[:,1]
+plt.plot(x, y, marker='o')
+plt.title('Steps per Episode')
+plt.xlabel('Episode')
+plt.ylabel('Steps')
+plt.grid(True)
+plt.show()
