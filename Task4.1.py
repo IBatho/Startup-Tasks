@@ -157,7 +157,7 @@ for i in range(grid[0]):
             continue
         a = max(range(4), key=lambda act: get_Q(Q, s, act))
         dx, dy = action_vec[a]
-        Xs.append(j);    Ys.append(i)      # no flip
+        Xs.append(j+0.5);    Ys.append(i)      # no flip
         Us.append(dx);  Vs.append(dy)
 
 plt.figure()
@@ -166,7 +166,7 @@ plt.quiver(Xs, Ys, Us, Vs, angles='xy', scale_units='xy', scale=1)
 for (i,j) in obstacles:
     plt.scatter(j, i, c='red', s=80)
 plt.scatter(end[1], end[0], c='green', s=80)
-plt.xlim(-0.5, grid[1]-0.5); plt.ylim(-0.5, grid[0]-0.5)
+plt.xlim(0, grid[1]); plt.ylim(0, grid[0])
 plt.gca().set_aspect('equal'); plt.grid(True)
 plt.show()
 
