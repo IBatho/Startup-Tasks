@@ -44,7 +44,7 @@ class number_guesser_env(gym.Env):
             truncated = True
             difference = self.last_guess - self.target
             obs = np.array([self.last_guess, difference], dtype=np.int32)
-            print("truncated")
+            #print("truncated")
             return obs, 0.0, done, truncated, {}
         
         guess = int(action) + self.low
@@ -54,7 +54,7 @@ class number_guesser_env(gym.Env):
         if guess == self.target:
             reward = 100
             done = True
-            print("done")
+            #print("done")
         else:
             alpha = 0.3
 
