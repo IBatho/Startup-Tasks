@@ -48,15 +48,16 @@ class SimpleFactoryEnv(gym.Env):
     def step(self, action):
         done = False
         truncated = False 
-        a_busy = self.current_state[0][0]
-        b_busy = self.current_state[0][1]
+        a_current_busy = self.busy[0]
+        b_current_busy = self.busy[1]
                              # if ran out of steps then end episode
 
         if self.step_count >= self.max_steps:
             truncated = True
             obs = self.current_state.flatten().astype(float)
             return obs, reward, done, truncated, {}
-        elif self.to_do == 0 and self.doing == 0:     # if there are no more orders to complete then done and reward
+        # if there are no more orders to complete then done and reward
+        elif self.to_do == 0 and self.doing == 0:     
             reward = 100
             done = True
             obs = self.current_state.flatten().astype(float)
@@ -67,34 +68,43 @@ class SimpleFactoryEnv(gym.Env):
             self.time_remaining = -1
             self.next_state = np.array([self.busy, self.time_remaining])
 
-        # If action is to move: reset FU times remaining
+        # If action is to move: reset FU times remaining at end
         elif action == 1:
-            # If the time remaining to completion of the current state is less than or equal to 0 then FU is done and can pass on
-            # to next FU so busyness becomes 0 because complet and asked
-            if self.time_remaining[0] <= 0 and self.time_remaining[1] <= 0:
-                a_busy = 0
-                b_busy = 0
 
-
-            self.time_remaining = np.array([self.A_time, self.B_time], dtype=np.int32)
+            
             # If A (FU before another FU) is not currently busy (can be made into loop for more FUs) 
             # and an order is added the next state will only have A as busy and B will be free
-            if a_busy == 0:
-                a_busy = 1
-                b_busy = 0
+            if self.busy[0] == 0:
+                self.busy[0] += 1
 
             # If no more orders to complete and units move to next FU so A won't be busy and B will be
             elif self.to_do == 0:
-                a_busy = 0
-                b_busy = +1
+                self.busy[0] = 0
+                self.busy[1] += 1
 
             else: 
-                #increase busyness by 1 and go back to time to completion
-                self.next_state = np.array([[a_busy+1,b_busy+1],[self.A_time,self.B_time]])
+                #increase busyness by 1 
+                self.busy += 1
+
+            # If the time remaining to completion of the current state is less than or equal to 0 then FU is done and can pass on
+            # to next FU so busyness becomes 0 because complete and asked to move on. less then 0 because item may be held in FU after complete.
+            # made 0 instead of taking away 1 because anything greater than 1 would have stopped episode
+            if self.time_remaining[0] <= 0:
+                self.busy[0] -= 1
+            if self.time_remaining[1] <= 0:
+                self.busy[1] -= 1
+                self.doing -= 1
+                self.complete += 1
+
             if self.to_do > 0:
                 self.doing +=1
                 self.to_do -= 1
+
+            self.time_remaining = np.array([self.A_time, self.B_time], dtype=np.int32)
         
+            self.next_state = np.array([self.busy, self.time_remaining])
+        
+
 
         # reasons for an invalid move:
         # if the either FUs in current state still has to complete it's action and next state has moved on then negative reward
