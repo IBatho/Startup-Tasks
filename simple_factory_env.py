@@ -26,13 +26,15 @@ class SimpleFactoryEnv(gym.Env):
         self.B_time = 0 # time B has been working
         self.A_busy = 0
         self.B_busy = 0
+        self.timer = 0
         self.step_count = 0
         self.complete = 0
+        self.A_not_working = 0
+        self.B_not_working = 0
         return self._get_obs(), {}
     
     def _get_obs(self):
-        obs = self.current_state.flatten().astype(float)
-        return obs
+        return self._get_state().flatten().astype(float)
     
     def _get_busy(self):
         self.busy = np.array([self.A_busy, self.B_busy], dtype=np.int32)
@@ -70,11 +72,16 @@ class SimpleFactoryEnv(gym.Env):
                 self.A_time += 1
                 if self.A_time > self.A_duration:
                     reward -= 0.5
+                    self.A_not_working += 1
 
             if self.B_busy == 1:
                 self.B_time += 1
                 if self.B_time > self.B_duration:
                     reward -= 0.5
+                    self.B_not_working += 1
+
+            if self.B_busy == 0 and self.A_busy == 0 and self.to_do > 0:
+                reward -= 1  # penalty for doing nothing when there are orders to process
 
             self.next_state = self._get_state()
 
@@ -90,29 +97,14 @@ class SimpleFactoryEnv(gym.Env):
                 self.B_time = 0
                 self.complete += 1
                 reward += 40
-            else:
-                reward -= 10
-                terminated = True
-                return self._get_obs(), reward, terminated, truncated, {}
-
             # check A
-            if self.A_busy == 1:
+            if self.A_busy == 1 and self.B_busy == 0:
                 # Check if A has completed working
+                # check if B is free to move on to:
                 if self.A_time >= self.A_duration:
-                    # check if B is free to move on to
-                    if self.B_busy == 0:
-                        self.A_busy -= 1
-                        self.B_busy += 1
-                        self.complete += 1
-                        reward += 1
-                    else:
-                        reward -= 1
-                        terminated = True
-                else:
-                    reward -= 10
-                    terminated = True
-                    return self._get_obs(), reward, terminated, truncated, {}
-
+                    self.A_busy -= 1
+                    self.B_busy += 1
+                    reward += 1
             # If A (FU before another FU) is not currently busy (can be made into loop for more FUs) 
             # and an order is added the next state will only have A as busy and B will be free e.g. at the start of order
             if self.A_busy == 0 and self.to_do > 0:
@@ -120,7 +112,7 @@ class SimpleFactoryEnv(gym.Env):
                 self.A_time = 0
                 self.to_do -= 1
                 self.next_state = self._get_state()
-
+                reward += 1
             # If no more orders to complete and units move to next FU so A won't be busy and B will be
             elif self.to_do == 0:
                 self.B_busy += 1
@@ -129,12 +121,18 @@ class SimpleFactoryEnv(gym.Env):
                 self.A_busy += 1
                 self.B_busy += 1
 
-            if self.to_do > 0:
-                self.to_do -= 1
-            elif self.complete == self.total_orders:
-                print('complete all orders')
+
+
+            self.timer += 1
 
             self.next_state = self._get_state()
+        if self.A_busy > 1 or self.B_busy > 1:
+            reward -= 5
+            terminated = True
+        elif self.complete == self.total_orders:
+            print('complete all orders')
+            reward += 100
+            terminated = True
         self.current_state = self.next_state
         self.doing = self.A_busy + self.B_busy
         print(f"Current State: {self.current_state}, Action: {action}, Steps: {self.step_count}, To Do: {self.to_do}, \
