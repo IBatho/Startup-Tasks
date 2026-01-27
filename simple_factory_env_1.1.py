@@ -1,3 +1,6 @@
+# simple_factory_env.py but changing the actions when action is invalid. Instead of terminating when invalid a reward is still given as 
+# negative but the state remains the same as before and then the next step is taken
+
 import gymnasium as gym
 import time
 import numpy as np
@@ -92,18 +95,17 @@ class SimpleFactoryEnv(gym.Env):
         # Check B first
             if self.B_busy == 1 and self.B_time >= self.B_duration:
                 # check if B has completed time
-                self.B_busy -= 1
+                self.B_busy = 0
                 self.B_time = 0
                 self.complete += 1
-                reward += 40
+                reward += 10
             # check A
-            if self.A_busy == 1 and self.B_busy == 0:
+            if self.A_busy == 1 and self.B_busy == 0 and self.A_time >= self.A_duration:
                 # Check if A has completed working
                 # check if B is free to move on to:
-                if self.A_time >= self.A_duration:
-                    self.A_busy -= 1
-                    self.B_busy += 1
-                    reward += 1
+                self.A_busy = 0
+                self.B_busy += 1
+                reward += 1
             # If A (FU before another FU) is not currently busy (can be made into loop for more FUs) 
             # and an order is added the next state will only have A as busy and B will be free e.g. at the start of order
             if self.A_busy == 0 and self.to_do > 0:
