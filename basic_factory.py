@@ -21,15 +21,20 @@ class BasicFactoryEnv(gym.Env):
         self.max_steps = max_steps        
         # Define action and observation space
         self.action_space = gym.spaces.Discrete(3)  # Example: 3 actions, 0: hold, 1: request to start A, 2: request to start B
-        self.observation_space = gym.spaces.Box(low=[0,0,0,0,0,0,0,0,0,0], high=[100,100,1,1,10,10,10,10,10,10], shape=(10,), dtype=float)  # Example: 4D observation
+        self.observation_space = gym.spaces.Box(
+            low=np.array([0,0,0,0,0,0,0,0,0,0], dtype=np.float32), 
+            high=np.array([100,100,1,50,50,100,1,50,50,100], dtype=np.float32), 
+            shape=(10,), 
+            dtype=np.float32
+            )
 
 
     def reset(self, seed=None, options=None):
+        super().reset(seed=seed)
         # Reset the state of the environment to an initial state
         self.env = simpy.Environment()            
         # Run environment
-        random.seed(RANDOM_SEED)
-        self.total_orders = random.randint(5, 16)
+        self.total_orders = np.random.randint(5, 16)
         self.to_do = self.total_orders # number of orders
         self.busy = np.array([0, 0], dtype=np.int32) # busy status of each FU
         self.step_count = 0
@@ -41,47 +46,58 @@ class BasicFactoryEnv(gym.Env):
     
 
     def summary(self):
-        waiting_times = []
-        system_times = []
-        working_times = []
+        avg_waiting_times = []
+        avg_system_times = []
+        total_working_times = []
+        obs = np.array([], dtype=np.float32)
         no_jobs = 0
         for i in range(len(self.arrival_times)):
             n = len(self.arrival_times[i])
             no_jobs += n
             if n == 0:
-                waiting_times.append([0])
-                system_times.append([0])
-                working_times.append(0)
+                avg_waiting_times.append(0.0)
+                avg_system_times.append(0.0)
+                total_working_times.append(0.0)
                 continue
-            waiting_times.append([s - a for a, s in zip(self.arrival_times[i], self.start_service_times[i])])
-            system_times.append([d - a for a, d in zip(self.arrival_times[i], self.departure_times[i])])
-            working_times.append(sum([d - a for a, d in zip(self.start_service_times[i], self.departure_times[i])]))
+            else:
+                avg_waiting_times.append(np.mean([s - a for a, s in zip(self.arrival_times[i], self.start_service_times[i])]))
+                avg_system_times.append(np.mean([d - a for a, d in zip(self.arrival_times[i], self.departure_times[i])]))
+                total_working_times.append(sum([d - a for a, d in zip(self.start_service_times[i], self.departure_times[i])]))
 
-        obs = np.array([self.to_do, self.complete, self.busy, waiting_times, system_times, working_times], dtype=np.float32)  
-        return obs.flatten().astype(float)
+        obs = np.append(obs, [self.to_do, self.complete])
+        for i in range(len(FU)):
+            obs = np.append(obs, [self.busy[i], avg_waiting_times[i], avg_system_times[i], total_working_times[i]])
+        return obs
 
     
     def step(self, action):
-        # let simpy run the environment and define rewards
-        
-    def job(env, name, machine, metrics):
-        with self.machine.request() as req:
-                yield req
-                start_service_time = env.now
-        return self.summary(), reward, terminated, truncated, info
-    
-    def job_generator(env, machine, metrics):
-        for i in range(NUM_ORDERS):
-            for j in range(len(FU)):
-                name = f"Job_{i+1}_FU{j}"
-                env.process(job(env, name, machine, metrics))
+        # let simpy run the environment and define rewards'
+        terminated = False
+        truncated = False
+        info = {}
+        self.step_count += 1
+        reward = 0
 
-        self.machine = simpy.Resource(env, capacity=1)
-        self.metrics = Metrics()
-        self.env.process(job_generator(env, machine, metrics))
-        self.env.run()
-        summary = metrics.summary()
-        print("\nSimulation Summary:")
-        for k, v in summary.items():
-            print(f"{k}: {v:.2f}" if isinstance(v, float) else f"{k}: {v}")
+        if self.step_count >= self.max_steps:
+            truncated = True
+            reward = -1
+            return self.summary(), reward, terminated, truncated, info
+        # in each action set up a job
+        if action == 0:
+            # hold
+
+        elif action == 1:
+            # request to start A
+
+        elif action == 2:
+            # request to start B
+        # generate jobs and run for a time step
+        self.env.run(until=self.env.now + 1)  # Run for a time step of 1 unit
+
+
+        return self.summary(), reward, terminated, truncated, info
+
+        
+    
+
 

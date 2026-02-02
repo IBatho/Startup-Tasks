@@ -1,0 +1,4 @@
+Order_id, Amount, Route, Due_date
+1, 10, "A>C>D>E", 20/02/2026
+2, 5, "B>D>E", 22/02/2026
+3, 8, "A>B>C>E", 25/02/2026
