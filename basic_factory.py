@@ -17,11 +17,14 @@ NUM_ORDERS = 20
 class BasicFactoryEnv(gym.Env):
     def __init__(self, max_steps=100):
         super().__init__()
-        self.FU_times = {0:A_TIME, 1:B_TIME}
+        self.FU_times = [A_TIME, B_TIME]
         self.max_steps = max_steps        
         # Define action and observation space
-        self.action_space = gym.spaces.Discrete(3)  # Example: 3 actions, 0: hold, 1: request to start A, 2: request to start B
-        self.observation_space = gym.spaces.Box(
+        # Example: 4 actions, 0: hold, 
+        # 1: request to start A, 
+        # 2: request to start B from A, 
+        # 3: request to start both A and B
+        self.action_space = gym.spaces.Discrete(4)    self.observation_space = gym.spaces.Box(
             low=np.array([0,0,0,0,0,0,0,0,0,0], dtype=np.float32), 
             high=np.array([100,100,1,50,50,100,1,50,50,100], dtype=np.float32), 
             shape=(10,), 
@@ -43,6 +46,7 @@ class BasicFactoryEnv(gym.Env):
         self.arrival_times = [[],[]]
         self.start_service_times = [[],[]]
         self.departure_times = [[],[]]
+        self.remaining_times = np.array([0.0, 0.0])
         return self.summary(), {}
     
 
@@ -70,21 +74,25 @@ class BasicFactoryEnv(gym.Env):
             obs = np.append(obs, [self.busy[i], avg_waiting_times[i], avg_system_times[i], total_working_times[i]])
         return obs
 
-    def job(self, env, name, machine_id):
+    def set_up_job(self, env, name, machine_id):
         # gets the arrival time for that item going into a specific FU
         self.arrival_times[machine_id].append(self.env.now)
         with self.machines[machine_id].request() as req:
             # timout only that machine for its service time
             yield req
+            self.busy[machine_id] = 1
+            if machine_id == 0:
+                self.to_do -= 1 # change to only A start
+    def run_job(self, env, name, machine_id):
             self.start_service_times[machine_id].append(self.env.now)
-            service_time = self.FU_times[machine_id]
+            service_time = self.remaining_times.min()
             yield env.timeout(service_time)
+            self.remaining_times[machine_id] -= service_time
+
             self.departure_times[machine_id].append(self.env.now)
-            self.complete += 1 # change to only B complete
-            self.to_do -= 1 # change to only A start
+            if machine_id == 1:
+                self.complete += 1 # change to only B complete
 
-
-    
     def step(self, action):
         # let simpy run the environment and define rewards'
         terminated = False
@@ -100,14 +108,30 @@ class BasicFactoryEnv(gym.Env):
         # in each action set up a job
         if action == 0:
             # hold
-            pass
+            if self.busy[0] == 1 and self.busy[1] == 1 and self.to_do > 0: # if either FU is busy
+                reward -= 1  # penalty for holding when FUs are busy
+            elif self.busy[0] == 1 and self.busy[1] == 0:
+                reward -= 0.5
+            elif self.busy[0] == 0 and self.busy[1] == 1:
+                reward -= 0.5
         elif action == 1:
             # request to start A
+            if self.busy[0] == 0:
+                self.remaining_times[0] = self.FU_times[0]
             self.env.process(self.job(self.env, f"Job_A_{self.step_count}", FU["A"]))
         elif action == 2:
             # request to start B, moving from B
+            if self.busy[1] == 0:
+                self.remaining_times[1] = self.FU_times[1]
             self.env.process(self.job(self.env, f"Job_B_{self.step_count}", FU["B"]))
         # generate jobs and run for a time step
+        elif action == 3:
+            # request to start both A and B
+            if self.busy[0] == 0 and self.busy[1] == 0:
+                self.remaining_times[0] = self.FU_times[0]
+                self.remaining_times[1] = self.FU_times[1]
+            self.env.process(self.job(self.env, f"Job_A_{self.step_count}", FU["A"]))
+            self.env.process(self.job(self.env, f"Job_B_{self.step_count}", FU["B"]))
         self.env.run(until=self.env.now + 1)  # Run for a time step of 1 unit
 
         if self.complete == self.total_orders:
