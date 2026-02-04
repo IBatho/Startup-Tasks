@@ -24,7 +24,8 @@ class BasicFactoryEnv(gym.Env):
         # 1: request to start A, 
         # 2: request to start B from A, 
         # 3: request to start both A and B
-        self.action_space = gym.spaces.Discrete(4)    self.observation_space = gym.spaces.Box(
+        self.action_space = gym.spaces.Discrete(4)    
+        self.observation_space = gym.spaces.Box(
             low=np.array([0,0,0,0,0,0,0,0,0,0], dtype=np.float32), 
             high=np.array([100,100,1,50,50,100,1,50,50,100], dtype=np.float32), 
             shape=(10,), 
@@ -74,16 +75,21 @@ class BasicFactoryEnv(gym.Env):
             obs = np.append(obs, [self.busy[i], avg_waiting_times[i], avg_system_times[i], total_working_times[i]])
         return obs
 
-    def set_up_job(self, env, name, machine_id):
+    def set_up_job(self, env, name machine_id):
         # gets the arrival time for that item going into a specific FU
         self.arrival_times[machine_id].append(self.env.now)
         with self.machines[machine_id].request() as req:
-            # timout only that machine for its service time
+            #request the machine to start
             yield req
-            self.busy[machine_id] = 1
+            if machine_id == 0: # if machine A then set busy A
+                self.busy[machine_id] = 1
+            else:                       #
+                self.busy[machine_id] = 1
+                self.busy[machine_id - 1] = 0  # free up A when moving to B
             if machine_id == 0:
                 self.to_do -= 1 # change to only A start
-    def run_job(self, env, name, machine_id):
+
+    def run_job(self, env, machine_id):
             self.start_service_times[machine_id].append(self.env.now)
             service_time = self.remaining_times.min()
             yield env.timeout(service_time)
@@ -94,7 +100,7 @@ class BasicFactoryEnv(gym.Env):
                 self.complete += 1 # change to only B complete
 
     def step(self, action):
-        # let simpy run the environment and define rewards'
+        # let simpy run the environment and define rewards
         terminated = False
         truncated = False
         info = {}
@@ -118,20 +124,22 @@ class BasicFactoryEnv(gym.Env):
             # request to start A
             if self.busy[0] == 0:
                 self.remaining_times[0] = self.FU_times[0]
-            self.env.process(self.job(self.env, f"Job_A_{self.step_count}", FU["A"]))
+            self.env.process(self.set_up_job(self.env, f"Job_A_{self.step_count}", FU["A"]))
         elif action == 2:
             # request to start B, moving from B
             if self.busy[1] == 0:
                 self.remaining_times[1] = self.FU_times[1]
-            self.env.process(self.job(self.env, f"Job_B_{self.step_count}", FU["B"]))
+            self.env.process(self.set_up_job(self.env, f"Job_B_{self.step_count}", FU["B"]))
         # generate jobs and run for a time step
         elif action == 3:
             # request to start both A and B
             if self.busy[0] == 0 and self.busy[1] == 0:
                 self.remaining_times[0] = self.FU_times[0]
                 self.remaining_times[1] = self.FU_times[1]
-            self.env.process(self.job(self.env, f"Job_A_{self.step_count}", FU["A"]))
-            self.env.process(self.job(self.env, f"Job_B_{self.step_count}", FU["B"]))
+            self.env.process(self.set_up_job(self.env, f"Job_A_{self.step_count}", FU["A"]))
+            self.env.process(self.set_up_job(self.env, f"Job_B_{self.step_count}", FU["B"]))
+
+        self.env.process(self.run_job(self.env, FU["A"]))
         self.env.run(until=self.env.now + 1)  # Run for a time step of 1 unit
 
         if self.complete == self.total_orders:
@@ -139,8 +147,3 @@ class BasicFactoryEnv(gym.Env):
             terminated = True
 
         return self.summary(), reward, terminated, truncated, info
-
-        
-    
-
-
