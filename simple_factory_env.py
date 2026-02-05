@@ -120,8 +120,6 @@ class SimpleFactoryEnv(gym.Env):
                 self.A_busy += 1
                 self.B_busy += 1
 
-
-
         self.timer += 1
 
         self.next_state = self._get_state()

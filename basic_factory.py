@@ -8,6 +8,12 @@ import numpy as np
 # and not move which means held)
 # Penalty for: time taken to complete jobs longer than neded, time FU idle, time FU working longer than needed, holding when there are jobs to do
 
+# Envionrment of 2 FUs A and B, where A is the first FU and B is the second FU. 
+# Jobs are requested for A and do service time there
+# When 1 or 3 requested then move to B when complete.
+# Sequential order of using FUs A then B, no skipping or going back.
+# Each FU has a capacity of only 1 job at a time and there is no buffer between them, so if B is busy then A cannot move to B and must hold until B is free.
+
 RANDOM_SEED = 42
 B_TIME = 5.0
 A_TIME = 2.0
@@ -75,7 +81,7 @@ class BasicFactoryEnv(gym.Env):
             obs = np.append(obs, [self.busy[i], avg_waiting_times[i], avg_system_times[i], total_working_times[i]])
         return obs
 
-    def set_up_job(self, env, name machine_id):
+    def job(self, env, name, machine_id):
         # gets the arrival time for that item going into a specific FU
         self.arrival_times[machine_id].append(self.env.now)
         with self.machines[machine_id].request() as req:
@@ -88,16 +94,14 @@ class BasicFactoryEnv(gym.Env):
                 self.busy[machine_id - 1] = 0  # free up A when moving to B
             if machine_id == 0:
                 self.to_do -= 1 # change to only A start
-
-    def run_job(self, env, machine_id):
             self.start_service_times[machine_id].append(self.env.now)
-            service_time = self.remaining_times.min()
+            service_time = self.remaining_times[machine_id]
             yield env.timeout(service_time)
-            self.remaining_times[machine_id] -= service_time
-
+            self.remaining_times[machine_id] = 0
             self.departure_times[machine_id].append(self.env.now)
             if machine_id == 1:
                 self.complete += 1 # change to only B complete
+                self.busy[machine_id] = 0 # free up B when complete            
 
     def step(self, action):
         # let simpy run the environment and define rewards
@@ -124,23 +128,25 @@ class BasicFactoryEnv(gym.Env):
             # request to start A
             if self.busy[0] == 0:
                 self.remaining_times[0] = self.FU_times[0]
-            self.env.process(self.set_up_job(self.env, f"Job_A_{self.step_count}", FU["A"]))
+                self.env.process(self.job(self.env, f"Job_A_{self.step_count}", FU["A"]))
         elif action == 2:
             # request to start B, moving from B
-            if self.busy[1] == 0:
+            if self.busy[1] == 0 and self.busy[0] == 1 and self.remaining_times[0] == 0: # if B is free and A is busy and A has completed its time
                 self.remaining_times[1] = self.FU_times[1]
-            self.env.process(self.set_up_job(self.env, f"Job_B_{self.step_count}", FU["B"]))
+                self.env.process(self.job(self.env, f"Job_B_{self.step_count}", FU["B"]))
         # generate jobs and run for a time step
         elif action == 3:
             # request to start both A and B
-            if self.busy[0] == 0 and self.busy[1] == 0:
+            if self.busy[1] == 0 and self.remaining_times[0] == 0: # if B is free and A has completed its time
                 self.remaining_times[0] = self.FU_times[0]
                 self.remaining_times[1] = self.FU_times[1]
-            self.env.process(self.set_up_job(self.env, f"Job_A_{self.step_count}", FU["A"]))
-            self.env.process(self.set_up_job(self.env, f"Job_B_{self.step_count}", FU["B"]))
+                self.env.process(self.job(self.env, f"Job_B_{self.step_count}", FU["B"]))
+                self.env.process(self.job(self.env, f"Job_A_{self.step_count}", FU["A"]))
 
-        self.env.process(self.run_job(self.env, FU["A"]))
-        self.env.run(until=self.env.now + 1)  # Run for a time step of 1 unit
+        active_times = self.remaining_times[self.remaining_times > 0]
+        if len(active_times) > 0:
+            service_time = active_times.min()
+            self.env.run(until=self.env.now + service_time)  # Run until a machine is complete it's job
 
         if self.complete == self.total_orders:
             reward = 200

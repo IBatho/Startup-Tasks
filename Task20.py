@@ -38,11 +38,11 @@ def job(env, name, machine, metrics):
     print(f"{arrival_time:5.1f} - Job {name} arrives")
 
     with machine.request() as req:
-        yield req
-        start_service_time = env.now
+        yield req  # Wait for the machine to become available
+        start_service_time = env.now # Record the time when service starts
         print(f"{start_service_time:5.1f} - Job {name} starts service")
         service_time = random.expovariate(1.0 / SERVICE_TIME) # random service time with an average of SERVICE_TIME
-        yield env.timeout(service_time)
+        yield env.timeout(service_time) # Simulate the time taken for service
         departure_time = env.now
         print(f"{departure_time:5.1f} - Job {name} departs")
 
