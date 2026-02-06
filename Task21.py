@@ -21,7 +21,7 @@ model = PPO(
         net_arch=[256, 256]  # Larger network
     )
 )
-model.learn(total_timesteps=20000)
+model.learn(total_timesteps=50000)
 obs, info = env.reset()
 
 for _ in range(100):
