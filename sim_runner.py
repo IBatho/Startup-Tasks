@@ -5,15 +5,25 @@ import numpy as np
 import matplotlib.pyplot as plt
 from Task22 import WorkshopEnv
 import csv
-from stable_baselines3.common.callbacks import BaseCallback
+from stable_baselines3.common.callbacks import BaseCallback, EvalCallback
+from stable_baselines3.common.monitor import Monitor
+from stable_baselines3.common.vec_env import DummyVecEnv
 
-env = WorkshopEnv()
+def my_env():
+    env = WorkshopEnv()
+    return Monitor(env)
+
+env = DummyVecEnv([my_env])
+eval_cb = EvalCallback(env, best_model_save_path="./logs/",
+                       log_path="./logs/", eval_freq=1000,
+                       deterministic=True, render=False)
+
 
 model = PPO(
     "MlpPolicy",
     env,
     verbose=1,
-    learning_rate=0.0005,
+    learning_rate=0.0002,
     n_steps=2048,
     batch_size=64,
     n_epochs=10,
@@ -27,16 +37,15 @@ class LogCallback(BaseCallback):
     def __init__(self):
         super().__init__()
         self.steps = []
-        self.ep_rew_mean = []
         self.losses = []
+        self.rew_steps = []
+        self.ep_rew_mean = []
         self._printed_keys = False
 
-
     def _on_step(self) -> bool:
-        # training logs live in self.logger.name_to_value
         logs = self.logger.name_to_value
         t = self.num_timesteps
-        # Temporary: print keys once to see what's available
+
         if not self._printed_keys and len(logs) > 0:
             print("LOG KEYS:", list(logs.keys()))
             self._printed_keys = True
@@ -45,44 +54,42 @@ class LogCallback(BaseCallback):
             self.steps.append(t)
             self.losses.append(logs["train/loss"])
 
-        # Log reward when available (only some steps)
         if "rollout/ep_rew_mean" in logs:
-            self.ep_rew_mean.append((t, logs["rollout/ep_rew_mean"]))
-        
-        for k in ["rollout/ep_rew_mean", "train/episode_reward"]:
-            if k in logs:
-                self.ep_rew_mean.append((t, logs[k]))
-                break
+            self.rew_steps.append(t)
+            self.ep_rew_mean.append(logs["rollout/ep_rew_mean"])
+
+        return True
+
 
         return True
 
 log_cb = LogCallback()
-model.learn(total_timesteps=10000, callback=log_cb)
+model.learn(total_timesteps=5000, callback=log_cb)
 model.save("ppo_factory_policy.zip")
 #env.save("ppo_factory_env.pkl")  # optional: only if you want to reload with same env wrapper
 
 
-num_eval_episodes = 30
-episode_indices = []
-episode_returns = []
+# num_eval_episodes = 1000
+# episode_indices = []
+# episode_returns = []
 
-for ep in range(num_eval_episodes):
-    obs, info = env.reset()
-    done = False
-    ep_ret = 0.0
+# for ep in range(num_eval_episodes):
+#     obs, info = env.reset()
+#     done = False
+#     ep_ret = 0.0
 
-    while not done:
-        action, _ = model.predict(obs, deterministic=True)
-        obs, reward, terminated, truncated, info = env.step(action)
-        ep_ret += reward
-        done = terminated or truncated
+#     while not done:
+#         action, _ = model.predict(obs, deterministic=True)
+#         obs, reward, terminated, truncated, info = env.step(action)
+#         ep_ret += reward
+#         done = terminated or truncated
 
-    episode_indices.append(ep)
-    episode_returns.append(ep_ret)
+#     episode_indices.append(ep)
+#     episode_returns.append(ep_ret)
 
 # Plot reward curve
 plt.figure()
-plt.plot(episode_indices, episode_returns, marker="o")
+plt.plot(log_cb.rew_steps, log_cb.ep_rew_mean, marker="o")
 plt.xlabel("Evaluation episode")
 plt.ylabel("Total episode reward")
 plt.title("PPO: evaluation episode returns")
