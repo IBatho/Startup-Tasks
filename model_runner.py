@@ -76,12 +76,17 @@ results = []'''
 header = ["FU / Time"] + [str(t) for t in time_log]
 rows = []
 unique_orders = list(my_orders.keys())
-colors = plt.cm.get_cmap('tab10', len(unique_orders))
-color_map = {order_id: colors(i) for i, order_id in enumerate(unique_orders)}
+# Define specific colors for each order
+color_map = {
+    1: 'green',  # Or 'tab:green' for a slightly softer shade
+    2: 'blue'    # Or 'tab:blue' for a slightly softer shade
+}
 
-fig, ax = plt.subplots(figsize=(16, 8)) # Increased width for better spacing
+fig, ax = plt.subplots(figsize=(20, 4)) # Increased width for better spacing
 
-for i, fu_name in enumerate(env.FU_names):
+graph_FUs = env.FU_names[:3]
+
+for i, fu_name in enumerate(graph_FUs):
     status_list = fu_log[fu_name]["idx"]
     
     # Track continuous blocks to avoid drawing many tiny 1-unit rectangles
@@ -106,24 +111,44 @@ for i, fu_name in enumerate(env.FU_names):
                 if duration > 1:
                     ax.text(start_time + duration/2, i, f"{current_job}", 
                             ha='center', va='center', color='white', 
-                            fontweight='bold', fontsize=9)
+                            fontweight='bold', fontsize=16)
             
             start_time = t
             current_job = status
 
+
+
 # Formatting
-ax.set_yticks(range(len(env.FU_names)))
-ax.set_yticklabels([f"FU {n}" for n in env.FU_names])
-ax.set_xlabel("Time →")
+ax.set_yticks(range(len(graph_FUs)))
+ax.set_yticklabels([f"FU {n}" for n in graph_FUs], fontsize=30, fontweight="bold")
+ax.set_xlabel("Time →", fontsize=30, fontweight="bold")
+ax.tick_params(axis='x', labelsize=20)
+ax.tick_params(axis='y', labelsize=20) # Optional: ensures y-ticks match
 ax.invert_yaxis()
 ax.xaxis.tick_top()
 ax.xaxis.set_label_position('top')
 ax.grid(True, axis='x', linestyle=':', alpha=0.5)
 
-# 3. Add a Legend to explain the colors
-legend_patches = [mpatches.Patch(color=color_map[oid], label=f'Order {oid}') for oid in unique_orders]
-plt.legend(handles=legend_patches, bbox_to_anchor=(1.05, 1), loc='upper left', title="Orders")
+# Legend to explain the colors
 
+legend_patches = [mpatches.Patch(color=color_map[oid], label=f'Order {oid}') for oid in unique_orders]
+leg = ax.legend(handles=legend_patches, 
+          loc='center right',           
+          title="Orders",
+          title_fontsize=20,           # Makes the "Orders" title bigger
+          fontsize=18,                 # Makes the "Order 1" & "Order 2" text bigger
+          handlelength=2.5,            # Makes the color rectangle wider
+          handleheight=1.5,            # Makes the color rectangle taller
+          labelspacing=1.2,            # Adds more vertical space between the orders
+          borderpad=1.2,
+          frameon=True,                
+          edgecolor='black',           
+          facecolor='white',           
+          framealpha=1.0,              
+          shadow=True)
+
+# Set the border thickness separately
+leg.get_frame().set_linewidth(1.5)
 plt.tight_layout()
 plt.show()
 
