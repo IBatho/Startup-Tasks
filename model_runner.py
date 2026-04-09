@@ -1,26 +1,45 @@
-from Task22 import WorkshopEnv
+from Final_1_Scalable_Factory import WorkshopEnv
+# from Task22 import WorkshopEnv
 from stable_baselines3 import DQN, PPO
 import csv
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
+from collections import namedtuple
+RouteStep = namedtuple("RouteStep", ["fu_name", "service_time"])
 
+def FU(index, default_service_time):
+    return {
+        "index": index,
+        "default_service_time": default_service_time,
+        "busy": 0, # with which order, 0: nothing, 1: order 1
+        "arrival_times": [],
+        "start_service_times": [],
+        "departure_times": [],
+        "remaining_time": 0.0,
+        "waiting_times": [],
+        "system_times": [],
+        "working_time": 0.0,
+        "waiting": [], # identifies which FUs want to send an item 
+        "working_on": [0,0],
+        "util_rate": 0.0
+    }
 
 my_FU = {
-    "A": {"index": 1, "service_time": 4},
-    "B": {"index": 2, "service_time": 5},
-    "C": {"index": 3, "service_time": 2},
-    "D": {"index": 4, "service_time": 3},
-    "E": {"index": 5, "service_time": 3},
-    "F": {"index": 6, "service_time": 2},
+    "A": FU(1, 4),
+    "B": FU(2, 5),
+    "C": FU(3, 2),
+    "D": FU(4, 3),
+    "E": FU(5, 3),
+    "F": FU(6, 2),
 }
 
 my_orders = {
-    1: {"size": 6, "start_time": 0, "due_date": 75, "route": ["A", "C", "D", "E"], "to_do": 6, "complete": 0},
-    2: {"size": 5, "start_time": 5, "due_date": 90, "route": ["B", "C", "D", "F"], "to_do": 5, "complete": 0},
+    1: {"size": 6, "start_time": 0, "due_date": 75, "route": [RouteStep("A", 4), RouteStep("C", 2), RouteStep("D", 3), RouteStep("E", 3)], "to_do": 6, "complete": 0},
+    2: {"size": 5, "start_time": 5, "due_date": 90, "route": [RouteStep("B", 5), RouteStep("C", 2), RouteStep("D", 3), RouteStep("F", 2)], "to_do": 5, "complete": 0},
 }
 
 env = WorkshopEnv(fu_config=my_FU, custom_orders=my_orders)
-loaded_model = PPO.load("ppo_factory_policy_L0.0003_T400000.zip", env=env)
+loaded_model = PPO.load("Case_1_ppo_factory_policy.zip", env=env)
 
 obs, info = env.reset()
 done = False
@@ -28,6 +47,8 @@ while not done:
     action, _ = loaded_model.predict(obs, deterministic=True)
     obs, reward, terminated, truncated, info = env.step(action)
     done = terminated or truncated
+    print(obs, reward, terminated, truncated, info)
+
 
 time_log = env.time_log
 fu_log = env.fu_log  # dict: fu_name -> list of labels
@@ -84,7 +105,7 @@ color_map = {
 
 fig, ax = plt.subplots(figsize=(20, 4)) # Increased width for better spacing
 
-graph_FUs = env.FU_names[:3]
+graph_FUs = env.FU_names
 
 for i, fu_name in enumerate(graph_FUs):
     status_list = fu_log[fu_name]["idx"]

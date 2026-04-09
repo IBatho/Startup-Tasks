@@ -3,11 +3,13 @@ from stable_baselines3 import DQN, PPO
 import time
 import numpy as np
 import matplotlib.pyplot as plt
-from Task22 import WorkshopEnv
+#from Task22 import WorkshopEnv
+from Final_1_Scalable_Factory import WorkshopEnv
 import csv
 from stable_baselines3.common.callbacks import BaseCallback, EvalCallback
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv
+import os
 
 def my_env():
     env = WorkshopEnv()
@@ -18,20 +20,22 @@ eval_cb = EvalCallback(env, best_model_save_path="./logs/",
                        log_path="./logs/", eval_freq=1000,
                        deterministic=True, render=False)
 
-
-model = PPO(
-    "MlpPolicy",
-    env,
-    verbose=1,
-    learning_rate=0.0002,
-    n_steps=2048,
-    batch_size=64,
-    n_epochs=10,
-    gamma=0.95,
-    ent_coef=0.01,
-    policy_kwargs=dict(net_arch=[256, 256]),  # Larger network
-    tensorboard_log="./ppo_factory_tb",
-)
+if os.path.exists("Case_1_ppo_factory_policy.zip"):
+    model = PPO.load("Case_1_ppo_factory_policy.zip", env=env)
+else:
+    model = PPO(
+        "MlpPolicy",
+        env,
+        verbose=1,
+        learning_rate=0.0002,
+        n_steps=2048,
+        batch_size=64,
+        n_epochs=10,
+        gamma=0.95,
+        ent_coef=0.01,
+        policy_kwargs=dict(net_arch=[256, 256]),  # Larger network
+        tensorboard_log="./ppo_factory_tb",
+    )
 
 class LogCallback(BaseCallback):
     def __init__(self):
@@ -60,12 +64,9 @@ class LogCallback(BaseCallback):
 
         return True
 
-
-        return True
-
 log_cb = LogCallback()
-model.learn(total_timesteps=5000, callback=log_cb)
-model.save("ppo_factory_policy.zip")
+model.learn(total_timesteps=5000, callback=log_cb, reset_num_timesteps=False)
+model.save("Case_1_ppo_factory_policy.zip")
 #env.save("ppo_factory_env.pkl")  # optional: only if you want to reload with same env wrapper
 
 
@@ -105,7 +106,7 @@ plt.title("PPO training: loss")
 plt.grid(True)
 plt.show()
 
-# obs, info = env.reset()
+obs = env.reset()
 # for _ in range(10):
 #     action = env.action_space.sample()
 #     obs, reward, terminated, truncated, info = env.step(action)
@@ -131,46 +132,46 @@ for _ in range(100):
         break#
 
 
-time_log = env.time_log
-fu_log = env.fu_log  # dict: fu_name -> list of labels
-order_log = env.order_log
+# time_log = env.time_log
+# fu_log = env.fu_log  # dict: fu_name -> list of labels
+# order_log = env.order_log
 
 
-# Ensure all FU lists are same length as time_log
-max_len = len(time_log)
-for fu_name in fu_log:
-    if len(fu_log[fu_name]["idx"]) < max_len:
-        fu_log[fu_name]["idx"] += [""] * (max_len - len(fu_log[fu_name]["idx"]))
-        fu_log[fu_name]["util_rate"] += [0.0] * (max_len - len(fu_log[fu_name]["util_rate"]))
+# # Ensure all FU lists are same length as time_log
+# max_len = len(time_log)
+# for fu_name in fu_log:
+#     if len(fu_log[fu_name]["idx"]) < max_len:
+#         fu_log[fu_name]["idx"] += [""] * (max_len - len(fu_log[fu_name]["idx"]))
+#         fu_log[fu_name]["util_rate"] += [0.0] * (max_len - len(fu_log[fu_name]["util_rate"]))
 
-# Ensure all order lists are same length as time_log
-for order in order_log:
-    if len(order_log[order]["to_do"]) < max_len:
-        order_log[order]["to_do"] += [0] * (max_len - len(order_log[order]["to_do"]))
-        order_log[order]["complete"] += [0] * (max_len - len(order_log[order]["complete"]))
-
-
-
-header = ["time"] 
-for fu_name in env.FU_names:
-    header += f"FU {fu_name}", "Utilisation Rate"
-for order in env.orders:
-    header += f"to do_{order}", f"complete_{order}"
-
-rows = []
-for idx, t in enumerate(time_log):
-    row = [t]
-    for fu_name in env.FU_names:
-        row.append(fu_log[fu_name]["idx"][idx])
-        row.append(fu_log[fu_name]["util_rate"][idx])
-    for order in env.orders.keys():
-        row.append(order_log[order]["to_do"][idx])
-        row.append(order_log[order]["complete"][idx])
-    rows.append(row)
-results = []
+# # Ensure all order lists are same length as time_log
+# for order in order_log:
+#     if len(order_log[order]["to_do"]) < max_len:
+#         order_log[order]["to_do"] += [0] * (max_len - len(order_log[order]["to_do"]))
+#         order_log[order]["complete"] += [0] * (max_len - len(order_log[order]["complete"]))
 
 
-with open("gantt_log.csv", "w", newline="") as f:
-    writer = csv.writer(f)
-    writer.writerow(header)
-    writer.writerows(rows)
+
+# header = ["time"] 
+# for fu_name in env.FU_names:
+#     header += f"FU {fu_name}", "Utilisation Rate"
+# for order in env.orders:
+#     header += f"to do_{order}", f"complete_{order}"
+
+# rows = []
+# for idx, t in enumerate(time_log):
+#     row = [t]
+#     for fu_name in env.FU_names:
+#         row.append(fu_log[fu_name]["idx"][idx])
+#         row.append(fu_log[fu_name]["util_rate"][idx])
+#     for order in env.orders.keys():
+#         row.append(order_log[order]["to_do"][idx])
+#         row.append(order_log[order]["complete"][idx])
+#     rows.append(row)
+# results = []
+
+
+# with open("gantt_log.csv", "w", newline="") as f:
+#     writer = csv.writer(f)
+#     writer.writerow(header)
+#     writer.writerows(rows)
