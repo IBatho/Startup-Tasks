@@ -65,7 +65,7 @@ class LogCallback(BaseCallback):
         return True
 
 log_cb = LogCallback()
-model.learn(total_timesteps=5000, callback=log_cb, reset_num_timesteps=False)
+model.learn(total_timesteps=150000, callback=log_cb, reset_num_timesteps=False)
 model.save("Case_1_ppo_factory_policy.zip")
 #env.save("ppo_factory_env.pkl")  # optional: only if you want to reload with same env wrapper
 
