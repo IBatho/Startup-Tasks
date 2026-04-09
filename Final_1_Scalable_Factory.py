@@ -105,7 +105,7 @@ class WorkshopEnv(gym.Env):
                 times = sorted([step.service_time for step in route])
                 other_times = times[:-1]
                 min_time = highest_service_time * size + sum(other_times) # minimum time to process all orders in an order
-                low = start_time + min_time*(size+1)
+                low = start_time + min_time # earliest due date is after the minimum time to process all items in the order, can be adjusted with a multiplier if you want to make it easier or harder
                 due_date = np.random.randint(low, max(low+1, LATEST_ORDER_DUE + 1))
     
                 self.orders[i+1] = {
