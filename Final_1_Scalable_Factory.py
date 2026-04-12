@@ -229,7 +229,7 @@ class WorkshopEnv(gym.Env):
             self.fu_config[machine_id]["util_rate"] = self.fu_config[machine_id]["working_time"] / self.env.now
             self.reward += 1 # reward for completing a job at any FU, in future can differentiate between FUs
             if machine_id == self.orders[order_id]["route"][-1].fu_name: # if it's the last FU then reward for completion 
-                self.reward += 5
+                self.reward += 10
                 self.orders[order_id]["complete"] += 1
                 self.fu_config[machine_id]["busy"] = 0
                 self.working -= 1
@@ -302,7 +302,7 @@ class WorkshopEnv(gym.Env):
                         if self.fu_config[fu_name]["remaining_time"] > 0]
         if len(active_times) > 0:
             service_time = min(active_times)
-            self.env.run(until=self.env.now + service_time)  # Run until a machine is complete it's job
+            self.env.run(until=self.env.now + service_time +0.001)  # Run until a machine is complete it's job
             for fu_name in self.fu_config:
                 self.fu_config[fu_name]["remaining_time"] -= service_time  # may produce negative times but that just indicates how long it's been idle
         elif self.working > 0: # if no machines are working but there are still jobs to do then run for a time step to simulate time passing and potentially add penalty for holding when there are jobs to do
@@ -312,21 +312,20 @@ class WorkshopEnv(gym.Env):
             if total_remaining > 0:
                 self.env.run(until=self.env.now + 1)  # Advance time so agent can take next action
         self._log_gantt(prev_time, int(self.env.now))
-        #print(self.order_log)
+        #print(self.order_log)            
 
-
-        lateness_penalty = 0.0
-        for oid, order in self.orders.items():
-            # only penalise orders that have arrived
-            lateness = self.env.now - order["due_date"]
-            lateness_penalty += 0.01 * lateness
-
-        self.reward -= lateness_penalty
+        
         total_orders = 0
         complete_orders = 0
-        for i in self.orders:
-            total_orders += self.orders[i]["size"]
-            complete_orders += self.orders[i]["complete"]
+        for id, order in self.orders.items():
+            total_orders += order["size"]
+            complete_orders += order["complete"]
+            lateness_penalty = 0.0
+
+            if order["complete"] == order["size"]:
+                lateness = self.env.now - order["due_date"]
+                lateness_penalty += 0.01 * lateness
+                self.reward -= lateness_penalty
         if total_orders == complete_orders:
             terminated = True
             avg_util = 0
