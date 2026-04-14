@@ -15,6 +15,8 @@ LATEST_ORDER_DUE = 500
 MAX_NUM_ORDERS = 4 
 MAX_NUM_FUS = 10
 MAX_JOB_TIME = 5
+MAX_JOBS = MAX_NUM_FUS*MAX_ORDER_SIZE
+MAX_BUFFER_SIZE = 5
 
 RouteStep = namedtuple("RouteStep", ["fu_name", "service_time"])
 PartID = namedtuple("PartID", ["order_id", "part_index"])
@@ -31,7 +33,7 @@ class WorkshopEnv(gym.Env):
         self.custom_orders = custom_orders  # will be a dict or None   
         # Define action and observation space
         # Example: 2 actions for each FU, 0: hold, 1: request to start
-        self.action_space = gym.spaces.MultiDiscrete([MAX_NUM_ORDERS+2]*MAX_NUM_FUS, dtype=np.int32)
+        self.action_space = gym.spaces.MultiDiscrete([MAX_NUM_ORDERS+1]*MAX_NUM_FUS, dtype=np.int32)
         obs_high = []
         obs_low = []
         obs_shape = 0
@@ -46,7 +48,9 @@ class WorkshopEnv(gym.Env):
         for i in range(MAX_NUM_FUS):
             obs_high.extend([1,1,1])
             obs_low.extend([0,0,0])
-            obs_shape += 3
+            obs_high.extend([1] * MAX_BUFFER_SIZE)   # track which jobs are waiting for this FU, up to MAX_BUFFER_SIZE
+            obs_low.extend([0] * MAX_BUFFER_SIZE)
+            obs_shape += 3 + MAX_BUFFER_SIZE
         self.observation_space = gym.spaces.Box(
             low=np.array(obs_low, dtype=np.float32), 
             high=np.array(obs_high, dtype=np.float32),
@@ -147,10 +151,7 @@ class WorkshopEnv(gym.Env):
             obs.append(self.orders[i]["complete"]/size)
             obs.append(norm_ttd)
             first_fu = self.orders[i]["route"][0].fu_name
-            for fu_name in self.FU_names:
-                obs.append(1.0 if fu_name == first_fu else 0.0)
-            for _ in range(self.FU_spare):
-                obs.append(0.0) # add in dummy values for missing FUs for each order
+
         for _ in range(self.Order_spare):
             obs.extend([0,0,0]) # add in dummy values for missing orders
             obs.extend([0] * MAX_NUM_FUS) # add in dummy values for missing orders for each FU
@@ -165,8 +166,13 @@ class WorkshopEnv(gym.Env):
             busy_util = float(np.clip(busy_util, 0.0, 1.0))
             wait_util = float(np.clip(wait_util, 0.0, 1.0))
             obs.extend([fu["busy"], busy_util, wait_util])
+            for i in range(MAX_BUFFER_SIZE):
+                job_idx = fu["waiting"][i]
+                obs.append(job_idx)
         for _ in range(self.FU_spare):
             obs.extend([0,0,0]) # add in dummy values for missing FUs
+            for i in range(MAX_BUFFER_SIZE):
+                obs.append(0) # add in dummy values for missing FUs
         
         return np.array(obs, dtype=np.float32).flatten()
     
@@ -214,7 +220,7 @@ class WorkshopEnv(gym.Env):
 
             else:                       
                 self.fu_config[machine_id]["busy"] = 1
-                previous_machine_id = self.fu_config[machine_id]["waiting"][0] # get previous machine in route
+                next_machine_id = self.fu_config[machine_id]["waiting"][0] # get next machine in route
                 self.fu_config[previous_machine_id]["busy"] = 0  # free up previous machine when moving to next
                 self.fu_config[machine_id]["waiting"].pop(0) # remove from wait list only if not first in route
                 self.fu_config[machine_id]["working_on"] = self.fu_config[previous_machine_id]["working_on"] 
@@ -272,29 +278,21 @@ class WorkshopEnv(gym.Env):
                 #     self.reward -= 0.5 # penalty for holding when there are jobs to do and machine is free
                 if self.fu_config[name]["busy"] == 1 and self.fu_config[name]["remaining_time"] > 0:
                     self.reward +=2 # machine correctly working on a job 
-            elif action_i == 1: # request to start FU i from previous FU
-                # request to start FU i
-                if self.fu_config[name]["busy"] == 0 and len(self.fu_config[name]["waiting"]) > 0: # if FU is free and previous FU in route is complete
-                    previous_fu = self.fu_config[name]["waiting"][0]   
-                    order_id = self.fu_config[previous_fu]["working_on"][0]
+                else:
+                    self.reward -= 0.5 # small penalty for holding when not working on a job
+            elif action_i <= self.num_orders:
+                order_id = action_i
+                # FU must be free, there must be orders to do,  and this must be the first FU of the order route
+                if self.fu_config[name]["busy"] == 0 and \
+                    self.orders[order_id]["to_do"] > 0 and \
+                    self.orders[order_id]["route"][0].fu_name == name and \
+                    self.orders[order_id]["start_time"]<=self.env.now: 
                     self.fu_config[name]["remaining_time"] = self.service_time(name, order_id)
                     self.env.process(self.job(self.env, name, order_id))
+                    self.reward += 1 # reward for starting a job
                 else:
-                    self.reward -= 1 # penalty for requesting to start A when it's busy or there are no jobs to do
-            elif action_i > 1: # request to start FU i from order with id action[i]
-                if action_i - 1 <= self.num_orders:
-                    order_id = action_i - 1
-                    # FU must be free, there must be orders to do,  and this must be the first FU of the order route
-                    if self.fu_config[name]["busy"] == 0 and \
-                        self.orders[order_id]["to_do"] > 0 and \
-                        self.orders[order_id]["route"][0].fu_name == name and \
-                        self.orders[order_id]["start_time"]<=self.env.now: 
-                        self.fu_config[name]["remaining_time"] = self.service_time(name, order_id)
-                        self.env.process(self.job(self.env, name, order_id))
-                        self.reward += 1 # reward for starting a job
-                    else:
-                        self.reward -= 0.1 # penalty for requesting to start when invalid
-    
+                    self.reward -= 0.1 # penalty for requesting to start when invalid
+
         prev_time = int(self.env.now)
 
         active_times = [self.fu_config[fu_name]["remaining_time"] 
@@ -340,5 +338,5 @@ class WorkshopEnv(gym.Env):
             self.reward += 300*avg_util
             #print("All orders completed!")
             # calc utilisation rate and take away based on percentage
-        #print(f"Step {self.step_count}: Time {self.env.now:.2f}, Reward: {self.reward:.2f}, Lateness Penalty: {lateness_penalty:.2f}, Total Orders: {total_orders}, Complete Orders: {complete_orders}")
+        print(f"Step {self.step_count}: Time {self.env.now:.2f}, Reward: {self.reward:.2f}, Lateness Penalty: {lateness_penalty:.2f}, Total Orders: {total_orders}, Complete Orders: {complete_orders}")
         return self.summary(), self.reward, terminated, truncated, info

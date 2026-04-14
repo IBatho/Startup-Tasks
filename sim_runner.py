@@ -10,6 +10,7 @@ from stable_baselines3.common.callbacks import BaseCallback, EvalCallback
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv
 import os
+import time
 
 def my_env():
     env = WorkshopEnv()
@@ -20,8 +21,8 @@ eval_cb = EvalCallback(env, best_model_save_path="./logs/",
                        log_path="./logs/", eval_freq=1000,
                        deterministic=True, render=False)
 
-if os.path.exists("Case_1_ppo_factory_policy.zip"):
-    model = PPO.load("Case_1_ppo_factory_policy.zip", env=env)
+if os.path.exists("Case_1_ppo_factory_policy_300000_steps.zip"):
+    model = PPO.load("Case_1_ppo_factory_policy_300000_steps.zip", env=env)
 else:
     model = PPO(
         "MlpPolicy",
@@ -65,8 +66,10 @@ class LogCallback(BaseCallback):
         return True
 
 log_cb = LogCallback()
-model.learn(total_timesteps=150000, callback=log_cb, reset_num_timesteps=False)
-model.save("Case_1_ppo_factory_policy.zip")
+start = time.time()
+model.learn(total_timesteps=300000, callback=log_cb, reset_num_timesteps=False)
+model.save("Case_1_ppo_factory_policy_300000_steps.zip")
+print(f"Training time: {time.time() - start:.2f}s")
 #env.save("ppo_factory_env.pkl")  # optional: only if you want to reload with same env wrapper
 
 

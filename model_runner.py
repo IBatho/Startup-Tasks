@@ -31,15 +31,20 @@ my_FU = {
     "D": FU(4, 3),
     "E": FU(5, 3),
     "F": FU(6, 2),
+    "G": FU(7, 4),
+    "H": FU(8, 2),
+    "I": FU(9, 3),
+    "J": FU(10, 2),
 }
 
 my_orders = {
-    1: {"size": 6, "start_time": 0, "due_date": 75, "route": [RouteStep("A", 4), RouteStep("C", 2), RouteStep("D", 3), RouteStep("E", 3)], "to_do": 6, "complete": 0},
-    2: {"size": 5, "start_time": 5, "due_date": 90, "route": [RouteStep("B", 5), RouteStep("C", 2), RouteStep("D", 3), RouteStep("F", 2)], "to_do": 5, "complete": 0},
+    1: {"size": 6, "start_time": 0, "due_date": 36, "route": [RouteStep("A", 4), RouteStep("C", 2), RouteStep("D", 3), RouteStep("E", 3)], "to_do": 6, "complete": 0},
+    2: {"size": 5, "start_time": 5, "due_date": 41, "route": [RouteStep("B", 5), RouteStep("C", 2), RouteStep("D", 3), RouteStep("F", 2)], "to_do": 5, "complete": 0},
+    3: {"size": 4, "start_time": 10, "due_date": 30, "route": [RouteStep("A", 4), RouteStep("G", 4), RouteStep("H", 2)], "to_do": 4, "complete": 0},
 }
 
 env = WorkshopEnv(fu_config=my_FU, custom_orders=my_orders)
-loaded_model = PPO.load("Case_1_ppo_factory_policy.zip", env=env)
+loaded_model = PPO.load("Case_1_ppo_factory_policy_300000_steps.zip", env=env)
 
 obs, info = env.reset()
 done = False
