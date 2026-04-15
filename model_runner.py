@@ -25,26 +25,26 @@ def FU(index, default_service_time):
     }
 
 my_FU = {
-    "A": FU(1, 4),
-    "B": FU(2, 5),
-    "C": FU(3, 2),
-    "D": FU(4, 3),
-    "E": FU(5, 3),
-    "F": FU(6, 2),
-    "G": FU(7, 4),
-    "H": FU(8, 2),
-    "I": FU(9, 3),
-    "J": FU(10, 2),
+    "A": FU(1, 4), # bandsaw
+    "B": FU(2, 5), # CNC milling
+    "C": FU(3, 2), # CNC lathe
+    "D": FU(4, 3), # Manual Milling
+    "E": FU(5, 3), # Drilling press and tapping
+    "F": FU(6, 2), # Welding station
+    "G": FU(7, 4), # Grinding and deburring station 
+    "H": FU(8, 2), # Inspection station
+    "I": FU(9, 3), # CNC plasma cutting
+    "J": FU(10, 2), # Pressure testing and assembly station
 }
 
 my_orders = {
-    1: {"size": 6, "start_time": 0, "due_date": 36, "route": [RouteStep("A", 4), RouteStep("C", 2), RouteStep("D", 3), RouteStep("E", 3)], "to_do": 6, "complete": 0},
-    2: {"size": 5, "start_time": 5, "due_date": 41, "route": [RouteStep("B", 5), RouteStep("C", 2), RouteStep("D", 3), RouteStep("F", 2)], "to_do": 5, "complete": 0},
-    3: {"size": 4, "start_time": 10, "due_date": 30, "route": [RouteStep("A", 4), RouteStep("G", 4), RouteStep("H", 2)], "to_do": 4, "complete": 0},
+    1: {"size": 12, "start_time": 0, "due_date": 160, "route": [RouteStep("A", 4), RouteStep("C", 18), RouteStep("E", 7), RouteStep("G", 3), RouteStep("H", 5)], "to_do": 12, "complete": 0, "complete_true": False},
+    2: {"size": 8, "start_time": 15, "due_date": 140, "route": [RouteStep("B", 5), RouteStep("C", 2), RouteStep("D", 3), RouteStep("F", 2)], "to_do": 8, "complete": 0, "complete_true": False},
+    3: {"size": 3, "start_time": 25, "due_date": 165, "route": [RouteStep("A", 4), RouteStep("G", 4), RouteStep("H", 2)], "to_do": 3, "complete": 0, "complete_true": False},
 }
 
 env = WorkshopEnv(fu_config=my_FU, custom_orders=my_orders)
-loaded_model = PPO.load("Case_1_ppo_factory_policy_300000_steps.zip", env=env)
+loaded_model = PPO.load("Case_1_ppo_factory_policy_600000_steps.zip", env=env)
 
 obs, info = env.reset()
 done = False
@@ -105,7 +105,8 @@ unique_orders = list(my_orders.keys())
 # Define specific colors for each order
 color_map = {
     1: 'green',  # Or 'tab:green' for a slightly softer shade
-    2: 'blue'    # Or 'tab:blue' for a slightly softer shade
+    2: 'blue',    # Or 'tab:blue' for a slightly softer shade
+    3: 'orange'  # Or 'tab:orange' for a slightly softer shade
 }
 
 fig, ax = plt.subplots(figsize=(20, 4)) # Increased width for better spacing

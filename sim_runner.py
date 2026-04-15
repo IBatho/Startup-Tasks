@@ -35,7 +35,7 @@ else:
         gamma=0.95,
         ent_coef=0.01,
         policy_kwargs=dict(net_arch=[256, 256]),  # Larger network
-        tensorboard_log="./ppo_factory_tb",
+        tensorboard_log="./ppo_factory__case_studies_tensorboard/",
     )
 
 class LogCallback(BaseCallback):

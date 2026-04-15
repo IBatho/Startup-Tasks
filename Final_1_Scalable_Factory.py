@@ -9,18 +9,18 @@ from collections import namedtuple
 # and different routes through the FUs. As only 2 FUs and sequential order, routes can be: A only, B only, A then B.
 
 MIN_ORDER_SIZE = 3
-MAX_ORDER_SIZE = 6
-LATEST_ORDER_START = 20
+MAX_ORDER_SIZE = 15
+LATEST_ORDER_START = 30
 LATEST_ORDER_DUE = 500
 MAX_NUM_ORDERS = 4 
 MAX_NUM_FUS = 10
-MAX_JOB_TIME = 5
+MAX_JOB_TIME = 30
 
 RouteStep = namedtuple("RouteStep", ["fu_name", "service_time"])
 PartID = namedtuple("PartID", ["order_id", "part_index"])
 
 class WorkshopEnv(gym.Env):
-    def __init__(self, max_steps=400, fu_config=None, custom_orders=None):
+    def __init__(self, max_steps=600, fu_config=None, custom_orders=None):
         super().__init__()
         self.max_steps = max_steps
         self.fu_config = fu_config  # will be a dict or None
@@ -114,7 +114,8 @@ class WorkshopEnv(gym.Env):
                     "due_date": due_date,
                     "route": route,
                     "to_do": size,
-                    "complete": 0
+                    "complete": 0,
+                    "complete_true": False
                     }
         self.Order_spare = MAX_NUM_ORDERS - self.num_orders
         self.working = 0
@@ -252,7 +253,7 @@ class WorkshopEnv(gym.Env):
                 }
         self.step_count += 1
         self.reward = 0
-        #to_do_total = sum(self.to_do)
+        to_do_total = sum(self.orders[o]["to_do"] for o in self.orders)
 
         if self.step_count >= self.max_steps:
             truncated = True
@@ -268,8 +269,8 @@ class WorkshopEnv(gym.Env):
             name = self.FU_names[i]
             action_i = int(action[i])
             if action_i == 0: # hold 
-                # if self.FUs[i]["remaining_times"] <= 0 and to_do_total > 0:
-                #     self.reward -= 0.5 # penalty for holding when there are jobs to do and machine is free
+                # if self.fu_config[name]["remaining_time"] <= 0 and to_do_total > 0:
+                #     self.reward -= 0.05 # penalty for holding when there are jobs to do and machine is free
                 if self.fu_config[name]["busy"] == 1 and self.fu_config[name]["remaining_time"] > 0:
                     self.reward +=2 # machine correctly working on a job 
             elif action_i == 1: # request to start FU i from previous FU
@@ -293,7 +294,7 @@ class WorkshopEnv(gym.Env):
                         self.env.process(self.job(self.env, name, order_id))
                         self.reward += 1 # reward for starting a job
                     else:
-                        self.reward -= 0.1 # penalty for requesting to start when invalid
+                        self.reward -= 0.05 # penalty for requesting to start when invalid
     
         prev_time = int(self.env.now)
 
@@ -302,24 +303,26 @@ class WorkshopEnv(gym.Env):
                         if self.fu_config[fu_name]["remaining_time"] > 0]
 
         total_busy = sum([self.fu_config[name]["busy"] for name in self.FU_names])
-
+        service_time = 0.0
         if total_busy == self.num_fus and len(active_times):  # if all machines are busy, run until the next one is free
             service_time = min(active_times)
             #self.env.run(until=self.env.now + 1)
             self.env.run(until=self.env.now + service_time +0.001)  # Run until a machine is complete it's job
-            for fu_name in self.fu_config:
-                self.fu_config[fu_name]["remaining_time"] -= service_time  # may produce negative times but that just indicates how long it's been idle
-        elif self.working > 0: # if no machines are working but there are still jobs to do then run for a time step to simulate time passing and potentially add penalty for holding when there are jobs to do
+        elif self.working > 0: # if machines are working 
             self.env.run(until=self.env.now + 0.25) # if no machines are working just run for a time step
+            service_time = 0.25
         else:
             total_remaining = sum(o["to_do"] for o in self.orders.values())
             if total_remaining > 0:
                 self.env.run(until=self.env.now + 1) # if no machines are working but there are still jobs to do then run for a time step to simulate time passing and potentially add penalty for holding when there are jobs to do
                 #self.env.run(until=self.env.now + 1)  # Advance time so agent can take next action
+        for fu_name in self.fu_config:
+            if self.fu_config[fu_name]["busy"] == 1:    
+                self.fu_config[fu_name]["remaining_time"] -= service_time  # may produce negative times but that just indicates how long it's been idle
+        
         self._log_gantt(prev_time, int(self.env.now))
         #print(self.order_log)            
 
-        
         total_orders = 0
         complete_orders = 0
         for id, order in self.orders.items():
@@ -327,17 +330,19 @@ class WorkshopEnv(gym.Env):
             complete_orders += order["complete"]
             lateness_penalty = 0.0
 
-            if order["complete"] == order["size"]:
+            if order["complete"] == order["size"] and not order["complete_true"]:
+                order["complete_true"] = True
                 lateness = self.env.now - order["due_date"]
-                lateness_penalty += 0.01 * lateness
-                self.reward -= lateness
+                lateness_penalty += 0.1 * lateness
+                print(f"Order {id} completed at time {self.env.now:.2f} with lateness {lateness:.2f} and penalty {lateness_penalty:.2f} for {info}")
+                self.reward -= lateness_penalty # penalty for lateness, can adjust multiplier to make more or less important
         if total_orders == complete_orders:
             terminated = True
             avg_util = 0
             for fu_name in self.FU_names:
                 avg_util += self.fu_config[fu_name]["util_rate"]
             avg_util /= len(self.FU_names)
-            self.reward += 300*avg_util
+            self.reward += 100*avg_util
             #print("All orders completed!")
             # calc utilisation rate and take away based on percentage
         #print(f"Step {self.step_count}: Time {self.env.now:.2f}, Reward: {self.reward:.2f}, Lateness Penalty: {lateness_penalty:.2f}, Total Orders: {total_orders}, Complete Orders: {complete_orders}")
