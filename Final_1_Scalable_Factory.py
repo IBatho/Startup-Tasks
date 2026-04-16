@@ -45,7 +45,7 @@ class WorkshopEnv(gym.Env):
         # busy_A, Norm_waiting_time_overall, Norm_working_time_A_overall
         for i in range(MAX_NUM_FUS):
             obs_high.extend([1,1,1])
-            obs_low.extend([0,0,0])
+            obs_low.extend([0,0,-1])
             obs_shape += 3
         self.observation_space = gym.spaces.Box(
             low=np.array(obs_low, dtype=np.float32), 
@@ -160,12 +160,17 @@ class WorkshopEnv(gym.Env):
             fu = self.fu_config[fu_name]
             busy_util = fu["working_time"] / total_time
             # if you want explicit wait/system utilisations, sum their lists:
-            wait_sum = sum(fu["waiting_times"]) if fu["waiting_times"] else 0.0
-            wait_util = wait_sum / total_time
+            order = fu["working_on"][0] # get order currently being worked on
+            if order != 0:
+                idx = next((i for i, step in enumerate(self.orders[order]["route"]) if step.fu_name == fu_name), None)    
+                order_time = self.orders[order]["route"][idx].service_time if idx is not None else 0
+            else: 
+                order_time = 0
+            remaining_norm = fu["remaining_time"] / order_time if order_time > 0 else 0
             # clip to [0,1] to respect Box bounds
             busy_util = float(np.clip(busy_util, 0.0, 1.0))
-            wait_util = float(np.clip(wait_util, 0.0, 1.0))
-            obs.extend([fu["busy"], busy_util, wait_util])
+            remaining_norm = float(np.clip(remaining_norm, -1.0, 1.0))
+            obs.extend([fu["busy"], busy_util, remaining_norm])
         for _ in range(self.FU_spare):
             obs.extend([0,0,0]) # add in dummy values for missing FUs
         
@@ -272,7 +277,7 @@ class WorkshopEnv(gym.Env):
                 # if self.fu_config[name]["remaining_time"] <= 0 and to_do_total > 0:
                 #     self.reward -= 0.05 # penalty for holding when there are jobs to do and machine is free
                 if self.fu_config[name]["busy"] == 1 and self.fu_config[name]["remaining_time"] > 0:
-                    self.reward +=2 # machine correctly working on a job 
+                    self.reward += 1 # machine correctly working on a job 
             elif action_i == 1: # request to start FU i from previous FU
                 # request to start FU i
                 if self.fu_config[name]["busy"] == 0 and len(self.fu_config[name]["waiting"]) > 0: # if FU is free and previous FU in route is complete

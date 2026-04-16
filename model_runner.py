@@ -44,7 +44,7 @@ my_orders = {
 }
 
 env = WorkshopEnv(fu_config=my_FU, custom_orders=my_orders)
-loaded_model = PPO.load("Case_1_ppo_factory_policy_600000_steps.zip", env=env)
+loaded_model = PPO.load("Case_1_ppo_factory_policy_300000_steps.zip", env=env)
 
 obs, info = env.reset()
 done = False
