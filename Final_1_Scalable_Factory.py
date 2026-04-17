@@ -5,13 +5,13 @@ import numpy as np
 import pandas as pd
 from collections import namedtuple
 
-# Incorporating multiple orders with different sizes, start times, and due dates, 
-# and different routes through the FUs. As only 2 FUs and sequential order, routes can be: A only, B only, A then B.
-
+# Hard Limits for the running of operations as a proof of concept
+# These limits can be adjusted 
+# They are designed to limit the range of possibilities that the agents needs to be trained on for quicker training
 MIN_ORDER_SIZE = 3
 MAX_ORDER_SIZE = 15
 LATEST_ORDER_START = 30
-LATEST_ORDER_DUE = 500
+LATEST_ORDER_DUE = 400
 MAX_NUM_ORDERS = 4 
 MAX_NUM_FUS = 10
 MAX_JOB_TIME = 30
@@ -20,7 +20,7 @@ RouteStep = namedtuple("RouteStep", ["fu_name", "service_time"])
 PartID = namedtuple("PartID", ["order_id", "part_index"])
 
 class WorkshopEnv(gym.Env):
-    def __init__(self, max_steps=600, fu_config=None, custom_orders=None):
+    def __init__(self, max_steps=800, fu_config=None, custom_orders=None):
         super().__init__()
         self.max_steps = max_steps
         self.fu_config = fu_config  # will be a dict or None
@@ -339,7 +339,7 @@ class WorkshopEnv(gym.Env):
                 order["complete_true"] = True
                 lateness = self.env.now - order["due_date"]
                 lateness_penalty += 0.1 * lateness
-                print(f"Order {id} completed at time {self.env.now:.2f} with lateness {lateness:.2f} and penalty {lateness_penalty:.2f} for {info}")
+                print(f"Order {id} completed at time {self.env.now:.2f} with lateness {lateness:.2f} and penalty {lateness_penalty:.2f} at {self.step_count} for {info}")
                 self.reward -= lateness_penalty # penalty for lateness, can adjust multiplier to make more or less important
         if total_orders == complete_orders:
             terminated = True
@@ -348,7 +348,7 @@ class WorkshopEnv(gym.Env):
                 avg_util += self.fu_config[fu_name]["util_rate"]
             avg_util /= len(self.FU_names)
             self.reward += 100*avg_util
-            #print("All orders completed!")
+            print("All orders completed!")
             # calc utilisation rate and take away based on percentage
         #print(f"Step {self.step_count}: Time {self.env.now:.2f}, Reward: {self.reward:.2f}, Lateness Penalty: {lateness_penalty:.2f}, Total Orders: {total_orders}, Complete Orders: {complete_orders}")
         return self.summary(), self.reward, terminated, truncated, info

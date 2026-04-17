@@ -21,8 +21,8 @@ eval_cb = EvalCallback(env, best_model_save_path="./logs/",
                        log_path="./logs/", eval_freq=1000,
                        deterministic=True, render=False)
 
-if os.path.exists("Case_1_ppo_factory_policy_300000_steps.zip"):
-    model = PPO.load("Case_1_ppo_factory_policy_300000_steps.zip", env=env)
+if os.path.exists("Case_1_ppo_factory_policy_1200000_steps.zip"):
+    model = PPO.load("Case_1_ppo_factory_policy_1200000_steps.zip", env=env)
 else:
     model = PPO(
         "MlpPolicy",
@@ -67,8 +67,8 @@ class LogCallback(BaseCallback):
 
 log_cb = LogCallback()
 start = time.time()
-model.learn(total_timesteps=300000, callback=log_cb, reset_num_timesteps=False)
-model.save("Case_1_ppo_factory_policy_300000_steps.zip")
+model.learn(total_timesteps=100000, callback=log_cb, reset_num_timesteps=False)
+model.save("Case_1_ppo_factory_policy_1200000_steps.zip")
 print(f"Training time: {time.time() - start:.2f}s")
 #env.save("ppo_factory_env.pkl")  # optional: only if you want to reload with same env wrapper
 
