@@ -20,7 +20,7 @@ RouteStep = namedtuple("RouteStep", ["fu_name", "service_time"])
 PartID = namedtuple("PartID", ["order_id", "part_index"])
 
 class WorkshopEnv(gym.Env):
-    def __init__(self, max_steps=800, fu_config=None, custom_orders=None):
+    def __init__(self, max_steps=1200, fu_config=None, custom_orders=None):
         super().__init__()
         self.max_steps = max_steps
         self.fu_config = fu_config  # will be a dict or None

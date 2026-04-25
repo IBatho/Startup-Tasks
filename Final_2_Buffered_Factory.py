@@ -75,8 +75,8 @@ class WorkshopEnv(gym.Env):
                 "waiting_times": [],
                 "system_times": [],
                 "working_time": 0.0,
-                "waiting": [], # identifies which FUs want to send an item 
-                "working_on": [0,0],
+                "waiting": [PartID(0,0)] * MAX_BUFFER_SIZE, # identifies the parts waiting for this FU, up to MAX_BUFFER_SIZE, with dummy values for empty slots
+                "working_on": PartID(0,0), # identifies the part currently being processed by this FU, with dummy value if idle
                 "util_rate": 0.0
                 } for i in range(self.num_fus)}
         self.FU_names = list(self.fu_config.keys())
@@ -167,7 +167,8 @@ class WorkshopEnv(gym.Env):
             wait_util = float(np.clip(wait_util, 0.0, 1.0))
             obs.extend([fu["busy"], busy_util, wait_util])
             for i in range(MAX_BUFFER_SIZE):
-                job_idx = fu["waiting"][i]
+                order_id = fu["waiting"][i].order_id
+                job_idx = order_id/MAX_NUM_ORDERS if order_id != 0 else 0.0
                 obs.append(job_idx)
         for _ in range(self.FU_spare):
             obs.extend([0,0,0]) # add in dummy values for missing FUs
@@ -187,9 +188,9 @@ class WorkshopEnv(gym.Env):
             self.time_log.append(t)
             for fu_name in self.FU_names:
                 # if FU is busy, use working_on to build label; else blank
-                order_id, part_idx = self.fu_config[fu_name]["working_on"]
-                if order_id != 0:
-                    label = f"O{order_id}-P{part_idx}"
+                part_id = self.fu_config[fu_name]["working_on"]
+                if part_id != PartID(0,0):
+                    label = f"O{part_id.order_id}-P{part_id.part_idx}"
                 else:
                     label = ""
                 self.fu_log[fu_name]["idx"].append(label)
@@ -210,41 +211,48 @@ class WorkshopEnv(gym.Env):
         with self.machines[machine_idx].request() as req:
             #request the machine to start
             yield req
+            self.working += 1
             if machine_id == self.orders[order_id]["route"][0].fu_name: # if first FU in route of that order
                 self.fu_config[machine_id]["busy"] = 1
-                self.working += 1
                 self.orders[order_id]["to_do"] -= 1 # change to only A start
                 part_idx = self.orders[order_id]["size"] - self.orders[order_id]["to_do"]
                 #self.position[order_id][part_idx-1][1] = machine_idx + 1 # add in updates to position
-                self.fu_config[machine_id]["working_on"] = [order_id,part_idx]  
-
+                self.fu_config[machine_id]["working_on"] = PartID(order_id, part_idx)
             else:                       
                 self.fu_config[machine_id]["busy"] = 1
-                next_machine_id = self.fu_config[machine_id]["waiting"][0] # get next machine in route
-                self.fu_config[previous_machine_id]["busy"] = 0  # free up previous machine when moving to next
-                self.fu_config[machine_id]["waiting"].pop(0) # remove from wait list only if not first in route
-                self.fu_config[machine_id]["working_on"] = self.fu_config[previous_machine_id]["working_on"] 
-                self.fu_config[previous_machine_id]["working_on"] =[0,0]
+                part_idx = self.fu_config[machine_id]["working_on"].part_index
+                
 
             self.reward += 0.5 # reward for starting a job
             self.fu_config[machine_id]["start_service_times"].append(self.env.now)
             service_time = self.service_time(machine_id, order_id)
             yield env.timeout(service_time)
+            self.working -= 1
+            self.fu_config[machine_id]["working_on"] = PartID(0,0)
             self.fu_config[machine_id]["working_time"] += service_time
             self.fu_config[machine_id]["departure_times"].append(self.env.now)
             self.fu_config[machine_id]["util_rate"] = self.fu_config[machine_id]["working_time"] / self.env.now
             self.reward += 1 # reward for completing a job at any FU, in future can differentiate between FUs
-            if machine_id == self.orders[order_id]["route"][-1].fu_name: # if it's the last FU then reward for completion 
+            
+            order_idx = next(i for i, o in enumerate(self.orders[order_id]["route"]) if o.fu_name == machine_id) # find where in the route this FU is for the order
+            next_FU_in_route = self.orders[order_id]["route"][order_idx + 1].fu_name if order_idx < len(self.orders[order_id]["route"]) - 1 else None
+            if next_FU_in_route is None: # if it's the last FU then reward for completion 
                 self.reward += 10
                 self.orders[order_id]["complete"] += 1
                 self.fu_config[machine_id]["busy"] = 0
-                self.working -= 1
-                self.fu_config[machine_id]["working_on"]=[0,0]
-            else:
-                current_machined_idx = next(i for i, step in enumerate(self.orders[order_id]["route"]) if step.fu_name == machine_id)
-                next_machine_id = self.orders[order_id]["route"][current_machined_idx + 1].fu_name # get next machine in route
-                self.fu_config[next_machine_id]["waiting"].append(machine_id)
-
+                self.fu_config[machine_id]["working_on"]=PartID(0,0)
+            else: # if there is space in the buffer for the next FU
+                while PartID(0,0) not in self.fu_config[next_FU_in_route]["waiting"]: # wait until there is space in the buffer  
+                    yield env.timeout(0.1) # check every 0.1 time units
+                idx = next(i for i, step in enumerate(self.fu_config[next_FU_in_route]["waiting"]) if step == (0,0)) # find the first empty slot in the buffer
+                self.fu_config[next_FU_in_route]["waiting"][idx] = PartID(order_id, part_idx) # add the part to the buffer of the next FU
+                self.fu_config[machine_id]["busy"] = 0
+                self.fu_config[machine_id]["working_on"]=PartID(0,0)
+                self.parts[PartID(order_id, part_idx)]["position"] = next_FU_in_route + "_buffer" # update position of part in system
+                
+                
+                
+    
     def step(self, action):
         # let simpy run the environment and define rewards
         terminated = False
@@ -277,19 +285,30 @@ class WorkshopEnv(gym.Env):
                 # if self.FUs[i]["remaining_times"] <= 0 and to_do_total > 0:
                 #     self.reward -= 0.5 # penalty for holding when there are jobs to do and machine is free
                 if self.fu_config[name]["busy"] == 1 and self.fu_config[name]["remaining_time"] > 0:
-                    self.reward +=2 # machine correctly working on a job 
+                    self.reward += 1 # machine correctly working on a job 
                 else:
                     self.reward -= 0.5 # small penalty for holding when not working on a job
             elif action_i <= self.num_orders:
                 order_id = action_i
-                # FU must be free, there must be orders to do,  and this must be the first FU of the order route
-                if self.fu_config[name]["busy"] == 0 and \
-                    self.orders[order_id]["to_do"] > 0 and \
-                    self.orders[order_id]["route"][0].fu_name == name and \
-                    self.orders[order_id]["start_time"]<=self.env.now: 
-                    self.fu_config[name]["remaining_time"] = self.service_time(name, order_id)
-                    self.env.process(self.job(self.env, name, order_id))
-                    self.reward += 1 # reward for starting a job
+                # FU must be free 
+                if self.fu_config[name]["busy"] == 0:
+                    # chekc if it's first FU in order or from buffer there must be orders to do,  and this must be the first FU of the order route
+                    if self.orders[order_id]["route"][0].fu_name == name and \
+                        self.orders[order_id]["start_time"]<=self.env.now and \
+                        self.orders[order_id]["to_do"] > 0:
+                        self.fu_config[name]["remaining_time"] = self.service_time(name, order_id)
+                        self.env.process(self.job(self.env, name, order_id))
+                        self.reward += 1 # reward for starting a job
+                    elif order_id in [step.order_id for step in self.fu_config[name]["waiting"]]: # check if order_id called is in the buffer
+                        self.fu_config[name]["remaining_time"] = self.service_time(name, order_id)
+                        idx = next(i for i, step in enumerate(self.fu_config[name]["waiting"]) if step.order_id == order_id) # find where in the buffer the job is waiting
+                        part_id = self.fu_config[name]["waiting"][idx] # find the part number waiting for that order in the buffer
+                        self.parts[part_id]["position"] = name # update position of part in system
+                        self.parts[part_id]["processing_time"] = self.service_time(name, order_id)
+                        self.fu_config[name]["waiting"][idx] = PartID(0,0) # replace in buffer with (0,0)
+                        self.fu_config[name]["working_on"] = part_id # update working on to the part that was waiting
+                        self.env.process(self.job(self.env, name, order_id))
+                        self.reward += 1 # reward for starting a job
                 else:
                     self.reward -= 0.1 # penalty for requesting to start when invalid
 

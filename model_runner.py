@@ -34,17 +34,17 @@ my_FU = {
     "G": FU(7, 4), # Grinding and deburring station 
     "H": FU(8, 2), # Inspection station
     "I": FU(9, 3), # CNC plasma cutting
-    "J": FU(10, 2), # Pressure testing and assembly station
+    "J": FU(10, 2), # Paint booth
 }
 
 my_orders = {
-    1: {"size": 12, "start_time": 0, "due_date": 160, "route": [RouteStep("A", 4), RouteStep("C", 18), RouteStep("E", 7), RouteStep("G", 3), RouteStep("H", 5)], "to_do": 12, "complete": 0, "complete_true": False},
-    2: {"size": 8, "start_time": 15, "due_date": 140, "route": [RouteStep("B", 5), RouteStep("C", 2), RouteStep("D", 3), RouteStep("F", 2)], "to_do": 8, "complete": 0, "complete_true": False},
-    3: {"size": 3, "start_time": 25, "due_date": 165, "route": [RouteStep("A", 4), RouteStep("G", 4), RouteStep("H", 2)], "to_do": 3, "complete": 0, "complete_true": False},
+    1: {"size": 12, "start_time": 0, "due_date": 258.5, "route": [RouteStep("A", 4), RouteStep("B", 18), RouteStep("E", 7), RouteStep("G", 3), RouteStep("H", 5)], "to_do": 12, "complete": 0, "complete_true": False},
+    2: {"size": 8, "start_time": 15, "due_date": 143, "route": [RouteStep("A", 3), RouteStep("C", 20), RouteStep("D", 5), RouteStep("G", 4), RouteStep("H", 4)], "to_do": 8, "complete": 0, "complete_true": False},
+    3: {"size": 3, "start_time": 25, "due_date": 180, "route": [RouteStep("I", 12), RouteStep("A", 6), RouteStep("F", 30), RouteStep("G",3), RouteStep("H",6), RouteStep("J",15)], "to_do": 3, "complete": 0, "complete_true": False},
 }
 
 env = WorkshopEnv(fu_config=my_FU, custom_orders=my_orders)
-loaded_model = PPO.load("Case_1_ppo_factory_policy_1200000_steps.zip", env=env)
+loaded_model = PPO.load("Case_1_ppo_factory_policy_1800000_steps.zip", env=env)
 
 obs, info = env.reset()
 done = False
