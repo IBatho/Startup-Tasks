@@ -1,4 +1,13 @@
-from Final_1_Scalable_Factory import WorkshopEnv
+from Final_1_Scalable_Factory import WorkshopEnv as Case3
+from Case_study_1 import WorkshopEnv as Case2
+from Task22 import WorkshopEnv as Case1
+
+case_studies = {
+    "1": Case1,
+    "2": Case2,
+    "3": Case3
+}
+
 # from Task22 import WorkshopEnv
 from stable_baselines3 import DQN, PPO
 import csv
@@ -6,6 +15,18 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from collections import namedtuple
 RouteStep = namedtuple("RouteStep", ["fu_name", "service_time"])
+
+print("Which case study do you want to run?")
+case_study = input("1 - Fixed Factory, \n 2 for Scalable Factory - small model \n 3 for Scalable Factory - larger model\n")
+
+if case_study in case_studies:
+    env_class = case_studies[case_study]
+else:
+    print("Invalid case study selection.")
+    exit()
+
+model_file_name = input("Enter the model file name and folder path to load (e.g., './logs/Case_1_ppo_factory_policy_1500000_steps.zip'): ")
+
 
 def FU(index, default_service_time):
     return {
@@ -24,27 +45,75 @@ def FU(index, default_service_time):
         "util_rate": 0.0
     }
 
-my_FU = {
-    "A": FU(1, 4), # bandsaw
-    "B": FU(2, 5), # CNC milling
-    "C": FU(3, 2), # CNC lathe
-    "D": FU(4, 3), # Manual Milling
-    "E": FU(5, 3), # Drilling press and tapping
-    "F": FU(6, 2), # Welding station
-    "G": FU(7, 4), # Grinding and deburring station 
-    "H": FU(8, 2), # Inspection station
-    "I": FU(9, 3), # CNC plasma cutting
-    "J": FU(10, 2), # Paint booth
-}
+def parse_route(route_str):
+    steps = []
+    for step in route_str.split(">"):
+        fu, time = step.split(":")
+        steps.append(RouteStep(fu.strip(), float(time)))
+    return steps
 
-my_orders = {
-    1: {"size": 12, "start_time": 0, "due_date": 258.5, "route": [RouteStep("A", 4), RouteStep("B", 18), RouteStep("E", 7), RouteStep("G", 3), RouteStep("H", 5)], "to_do": 12, "complete": 0, "complete_true": False},
-    2: {"size": 8, "start_time": 15, "due_date": 143, "route": [RouteStep("A", 3), RouteStep("C", 20), RouteStep("D", 5), RouteStep("G", 4), RouteStep("H", 4)], "to_do": 8, "complete": 0, "complete_true": False},
-    3: {"size": 3, "start_time": 25, "due_date": 180, "route": [RouteStep("I", 12), RouteStep("A", 6), RouteStep("F", 30), RouteStep("G",3), RouteStep("H",6), RouteStep("J",15)], "to_do": 3, "complete": 0, "complete_true": False},
-}
+orders = "./orders/Case{case_study}_orders.csv".format(case_study=case_study)
+my_orders = {}
 
-env = WorkshopEnv(fu_config=my_FU, custom_orders=my_orders)
-loaded_model = PPO.load("Case_1_ppo_factory_policy_1800000_steps.zip", env=env)
+if case_study != "1":
+    FUs = "./FUs/Case{case_study}_FUs.csv".format(case_study=case_study)
+    my_FU = {}
+    with open(FUs, "r") as f:
+        reader = csv.reader(f)
+        header = next(reader)
+        for row in reader:
+            fu_name = row[0]
+            index = int(row[1])
+            default_service_time = float(row[2])
+            my_FU[fu_name] = FU(index, default_service_time)
+
+    with open(orders, "r") as f:
+        reader = csv.reader(f)
+        header = next(reader)
+        for row in reader:
+            order_id = int(row[0])
+            size = int(row[1])
+            start_time = int(row[2])
+            due_date = int(row[3])
+            route = row[4]
+            to_do = int(row[5])
+            complete = int(row[6])
+            complete_true = row[7].lower() == "true"
+            my_orders[order_id] = {
+                "size": size,
+                "start_time": start_time,
+                "due_date": due_date,
+                "route": parse_route(route),
+                "to_do": to_do,
+                "complete": complete,
+                "complete_true": complete_true
+            }
+
+else:
+    my_FU = None
+    with open(orders, "r") as f:
+        reader = csv.reader(f)
+        header = next(reader)
+        for row in reader:
+            order_id = int(row[0])
+            size = int(row[1])
+            start_time = int(row[2])
+            due_date = int(row[3])
+            route = row[4]
+            to_do = int(row[5])
+            complete = int(row[6])
+            my_orders[order_id] = {
+                "size": size,
+                "start_time": start_time,
+                "due_date": due_date,
+                "route": [fu.strip() for fu in route.split(">")],
+                "to_do": to_do,
+                "complete": complete,
+            }
+
+
+env = case_studies[case_study](fu_config=my_FU, custom_orders=my_orders)
+loaded_model = PPO.load(model_file_name, env=env)
 
 obs, info = env.reset()
 done = False

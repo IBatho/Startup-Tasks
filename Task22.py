@@ -15,8 +15,8 @@ FU = {"A": {"index": 1, "service_time": 4},
     "B": {"index": 2, "service_time": 5},
     "C": {"index": 3, "service_time": 2},
     "D": {"index": 4, "service_time": 3},
-    "E": {"index": 5, "service_time": 3},
-    "F": {"index": 6, "service_time": 2},
+    "E": {"index": 5, "service_time": 6},
+    "F": {"index": 6, "service_time": 7},
 }
  # FU A has id 1 and processing time 3, FU B has id 2 and processing time 6
 times = [FU[machine]["service_time"] for machine in FU] # extract processing times for each FU
@@ -47,9 +47,9 @@ class WorkshopEnv(gym.Env):
             obs_shape += 3 + len(FU)
         # busy_A, Norm_waiting_time_overall, Norm_working_time_A_overall
         for i in range(len(FU)):
-            obs_high.extend([1,1,1])
-            obs_low.extend([0,0,0])
-            obs_shape += 3
+            obs_high.extend([1,1,1,1])
+            obs_low.extend([0,0,0,-1])
+            obs_shape += 4
         self.observation_space = gym.spaces.Box(
             low=np.array(obs_low, dtype=np.float32), 
             high=np.array(obs_high, dtype=np.float32),
@@ -155,10 +155,14 @@ class WorkshopEnv(gym.Env):
             # clip to [0,1] to respect Box bounds
             busy_util = float(np.clip(busy_util, 0.0, 1.0))
             wait_util = float(np.clip(wait_util, 0.0, 1.0))
-            obs = np.append(
-                obs,
-                [fu["busy"], busy_util, wait_util]
-                )
+            remaining_norm = float(np.clip(fu["remaining_time"] / fu["service_time"], -1.0, 1.0) if fu["service_time"] > 0 else 0.0)
+            # per FU, replace the 3-scalar block with something like:
+            obs.extend([
+                fu["busy"],
+                busy_util,
+                fu["working_on"][0] / max(NUM_ORDERS, 1),    # which order is on this FU (0 = idle)
+                remaining_norm,              # how much longer it's busy
+            ])
         return np.array(obs, dtype=np.float32).flatten()
     
     def _log_gantt(self, start_t: int, end_t: int):

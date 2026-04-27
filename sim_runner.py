@@ -3,17 +3,46 @@ from stable_baselines3 import DQN, PPO
 import time
 import numpy as np
 import matplotlib.pyplot as plt
-#from Task22 import WorkshopEnv
-from Final_1_Scalable_Factory import WorkshopEnv
+from Task22 import WorkshopEnv as Case1
 import csv
 from stable_baselines3.common.callbacks import BaseCallback, EvalCallback
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv
 import os
 import time
+from Case_study_1 import WorkshopEnv as Case2
+from Final_1_Scalable_Factory import WorkshopEnv as Case3
+
+
+case_studies = {
+    "1": Case1,
+    "2": Case2,
+    "3": Case3
+}
+
+
+print("Which case study do you want to run?")
+case_study = input("1 - Fixed Factory, \n 2 for Scalable Factory - small model \n 3 for Scalable Factory - larger model\n")
+
+if case_study in case_studies:
+    env_class = case_studies[case_study]
+else:
+    print("Invalid case study selection.")
+    exit()
+
+training_start_point = input("Are you starting or continuing training? (type 'start' or 'continue') ")
+if training_start_point == "start":
+    model = None
+else:
+    model_file_name = input("Enter the model file name and folder path to load (e.g., './logs/Case_1_ppo_factory_policy_1500000_steps.zip'): ")
+
+save_path = input("Enter the folder path to save the trained model (e.g., './logs/'): ")
+
+time_steps = input("Enter the number of training timesteps (e.g., 300000): ")
+
 
 def my_env():
-    env = WorkshopEnv()
+    env = env_class()
     return Monitor(env)
 
 env = DummyVecEnv([my_env])
@@ -21,11 +50,8 @@ eval_cb = EvalCallback(env, best_model_save_path="./logs/",
                        log_path="./logs/", eval_freq=1000,
                        deterministic=True, render=False)
 
-if os.path.exists("Case_1_ppo_factory_policy_1500000_steps.zip"):
-    model = PPO.load("Case_1_ppo_factory_policy_1500000_steps.zip", env=env)
-else:
-    model = PPO(
-        "MlpPolicy",
+if training_start_point == "start":
+    model = PPO("MlpPolicy",
         env,
         verbose=1,
         learning_rate=0.0002,
@@ -35,8 +61,17 @@ else:
         gamma=0.95,
         ent_coef=0.01,
         policy_kwargs=dict(net_arch=[256, 256]),  # Larger network
-        tensorboard_log="./ppo_factory__case_studies_tensorboard/",
-    )
+        tensorboard_log="./ppo_tensorboard/{case_study}_ppo_tensorboard/".format(case_study=case_study),
+    )   # build a fresh model
+elif training_start_point == "continue":
+    if os.path.exists(model_file_name):
+        model = PPO.load(model_file_name, env=env)
+    else:
+        print(f"File '{model_file_name}' not found.")
+        exit()
+else:
+    print(f"Invalid choice '{training_start_point}'.")
+    exit()
 
 class LogCallback(BaseCallback):
     def __init__(self):
@@ -67,8 +102,8 @@ class LogCallback(BaseCallback):
 
 log_cb = LogCallback()
 start = time.time()
-model.learn(total_timesteps=300000, callback=log_cb, reset_num_timesteps=False)
-model.save("Case_1_ppo_factory_policy_1800000_steps.zip")
+model.learn(total_timesteps=int(time_steps), callback=log_cb, reset_num_timesteps=False)
+model.save(save_path)
 print(f"Training time: {time.time() - start:.2f}s")
 #env.save("ppo_factory_env.pkl")  # optional: only if you want to reload with same env wrapper
 
