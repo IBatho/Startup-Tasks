@@ -82,7 +82,8 @@ class WorkshopEnv(gym.Env):
                     "due_date": due_date,
                     "route": [],
                     "to_do": size,
-                    "complete": 0
+                    "complete": 0,
+                    "done": False
                     }
 
                 while len(self.orders[i+1]["route"]) == 0:
@@ -307,13 +308,11 @@ class WorkshopEnv(gym.Env):
         lateness_penalty = 0.0
         for oid, order in self.orders.items():
             # only penalise orders that have arrived
-            if self.env.now > order["start_time"]:
-                lateness = max(0.0, self.env.now - order["due_date"])
-                lateness_penalty += 0.05 * lateness 
-            else:
-                earliness = max(0.0, order["due_date"] - self.env.now)
-                lateness_penalty -= 0.05 * earliness
-
+            if not self.orders[oid].get("done", False):
+                if self.orders[oid]["complete"] == self.orders[oid]["size"]:
+                    self.orders[oid]["done"] = True
+                    lateness = self.env.now - order["due_date"]
+                    lateness_penalty += 0.5 * lateness 
         self.reward -= lateness_penalty
         total_orders = 0
         complete_orders = 0

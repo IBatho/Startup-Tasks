@@ -3,12 +3,12 @@ import numpy as np
 import csv
 import pandas as pd
 
-data = pd.read_csv("PPO_29_reward_data.csv")
+data = pd.read_csv("./Case1/1_ppo_tensorboard_PPO_0.csv")
+data = data.sort_values("Step").drop_duplicates(subset="Step", keep="last").reset_index(drop=True)
 x = data["Step"]
 y = data["Value"]
-# coefs = np.polyfit(x, y, deg=3)
-# trendline = np.poly1d(coefs)
 trendline_y = y.rolling(window=10, min_periods=1).mean()
+
 plt.figure(figsize=(10, 6))
 plt.scatter(x,y,color="red", alpha = 0.8, label="Raw Data", s=30)
 plt.plot(x, trendline_y, color="steelblue", linewidth=4, label="Trendline")

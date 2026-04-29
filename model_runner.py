@@ -102,6 +102,7 @@ else:
             route = row[4]
             to_do = int(row[5])
             complete = int(row[6])
+            done = row[7].lower()
             my_orders[order_id] = {
                 "size": size,
                 "start_time": start_time,
@@ -109,6 +110,7 @@ else:
                 "route": [fu.strip() for fu in route.split(">")],
                 "to_do": to_do,
                 "complete": complete,
+                "done": done
             }
 
 

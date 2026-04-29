@@ -61,7 +61,7 @@ if training_start_point == "start":
         gamma=0.95,
         ent_coef=0.01,
         policy_kwargs=dict(net_arch=[256, 256]),  # Larger network
-        tensorboard_log="./ppo_tensorboard/{case_study}_ppo_tensorboard/".format(case_study=case_study),
+        tensorboard_log=f"./ppo_tensorboard/{case_study}_ppo_tensorboard/".format(case_study=case_study),
     )   # build a fresh model
 elif training_start_point == "continue":
     if os.path.exists(model_file_name):
