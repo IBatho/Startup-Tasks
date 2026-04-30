@@ -226,7 +226,7 @@ class WorkshopEnv(gym.Env):
             self.fu_config[machine_id]["util_rate"] = self.fu_config[machine_id]["working_time"] / self.env.now
             self.reward += 1 # reward for completing a job at any FU, in future can differentiate between FUs
             if machine_id == self.orders[order_id]["route"][-1].fu_name: # if it's the last FU then reward for completion 
-                self.reward += 10
+                self.reward += 20
                 self.orders[order_id]["complete"] += 1
                 self.fu_config[machine_id]["busy"] = 0
                 self.working -= 1
@@ -265,10 +265,9 @@ class WorkshopEnv(gym.Env):
             name = self.FU_names[i]
             action_i = int(action[i])
             if action_i == 0: # hold 
-                # if self.fu_config[name]["remaining_time"] <= 0 and to_do_total > 0:
                 #     self.reward -= 0.05 # penalty for holding when there are jobs to do and machine is free
                 if self.fu_config[name]["busy"] == 1 and self.fu_config[name]["remaining_time"] > 0:
-                    self.reward += 1 # machine correctly working on a job 
+                    self.reward += 0.1 # machine correctly working on a job 
             elif action_i == 1: # request to start FU i from previous FU
                 # request to start FU i
                 if self.fu_config[name]["busy"] == 0 and len(self.fu_config[name]["waiting"]) > 0: # if FU is free and previous FU in route is complete
@@ -290,7 +289,7 @@ class WorkshopEnv(gym.Env):
                         self.env.process(self.job(self.env, name, order_id))
                         self.reward += 1 # reward for starting a job
                     else:
-                        self.reward -= 0.05 # penalty for requesting to start when invalid
+                        self.reward -= 1 # penalty for requesting to start when invalid
     
         prev_time = int(self.env.now)
 
@@ -329,7 +328,7 @@ class WorkshopEnv(gym.Env):
             if order["complete"] == order["size"] and not order["complete_true"]:
                 order["complete_true"] = True
                 lateness = self.env.now - order["due_date"]
-                lateness_penalty += 0.1 * lateness
+                lateness_penalty += 0.5 * lateness
                 print(f"Order {id} completed at time {self.env.now:.2f} with lateness {lateness:.2f} and penalty {lateness_penalty:.2f} at {self.step_count} for {info}")
                 self.reward -= lateness_penalty # penalty for lateness, can adjust multiplier to make more or less important
         if total_orders == complete_orders:
