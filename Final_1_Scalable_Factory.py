@@ -235,7 +235,7 @@ class WorkshopEnv(gym.Env):
             self.fu_config[machine_id]["util_rate"] = self.fu_config[machine_id]["working_time"] / self.env.now
             self.reward += 1 # reward for completing a job at any FU, in future can differentiate between FUs
             if machine_id == self.orders[order_id]["route"][-1].fu_name: # if it's the last FU then reward for completion 
-                self.reward += 10
+                self.reward += 20
                 self.orders[order_id]["complete"] += 1
                 self.fu_config[machine_id]["busy"] = 0
                 self.working -= 1
@@ -338,7 +338,7 @@ class WorkshopEnv(gym.Env):
             if order["complete"] == order["size"] and not order["complete_true"]:
                 order["complete_true"] = True
                 lateness = self.env.now - order["due_date"]
-                lateness_penalty += 0.1 * lateness
+                lateness_penalty += 0.5 * lateness
                 print(f"Order {id} completed at time {self.env.now:.2f} with lateness {lateness:.2f} and penalty {lateness_penalty:.2f} at {self.step_count} for {info}")
                 self.reward -= lateness_penalty # penalty for lateness, can adjust multiplier to make more or less important
         if total_orders == complete_orders:

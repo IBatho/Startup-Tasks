@@ -1,5 +1,5 @@
 id, size, start_time, due_date, route, to_do, complete, complete_true
-1: {"size": 12, "start_time": 0, "due_date": 258.5, "route": [RouteStep("A", 4), RouteStep("B", 18), RouteStep("E", 7), RouteStep("G", 3), RouteStep("H", 5)], "to_do": 12, "complete": 0, "complete_true": False},
-    2: {"size": 8, "start_time": 15, "due_date": 143, "route": [RouteStep("A", 3), RouteStep("C", 20), RouteStep("D", 5), RouteStep("G", 4), RouteStep("H", 4)], "to_do": 8, "complete": 0, "complete_true": False},
-    #3: {"size": 3, "start_time": 25, "due_date": 180, "route": [RouteStep("I", 12), RouteStep("A", 6), RouteStep("F", 30), RouteStep("G",3), RouteStep("H",6), RouteStep("J",15)], "to_do": 3, "complete": 0, "complete_true": False},
+12, 12, 0, 258.5, A:4>B:18>E:7>G:3H:5, 12, 0, False
+2, 8, 15, 143, "[RouteStep("A", 3), RouteStep("C", 20), RouteStep("D", 5), RouteStep("G", 4), RouteStep("H", 4)]", 8, 0, False
+#3, 3, 25, 180, "[RouteStep("I", 12), RouteStep("A", 6), RouteStep("F", 30), RouteStep("G",3), RouteStep("H",6), RouteStep("J",15)]", 3, 0, False
 }

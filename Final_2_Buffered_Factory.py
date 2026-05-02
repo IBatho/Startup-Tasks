@@ -37,13 +37,11 @@ class WorkshopEnv(gym.Env):
         obs_high = []
         obs_low = []
         obs_shape = 0
-        # Observation space: [Norm_to_do, Norm_complete, Norm_ttd, 
+        # Observation space: [Norm_to_do, Norm_complete, Norm_ttd, Norm_FU_id]
         for i in range(MAX_NUM_ORDERS):
-            obs_high.extend([1,1,1])
-            obs_low.extend([-1,-1,-1])
-            obs_high.extend([1] * MAX_NUM_FUS)   # binary: which FU starts this order's route
-            obs_low.extend([0] * MAX_NUM_FUS)
-            obs_shape += 3 + MAX_NUM_FUS
+            obs_high.extend([1,1,1,1])
+            obs_low.extend([-1,-1,-1,0])
+            obs_shape += 4
         # busy_A, Norm_waiting_time_overall, Norm_working_time_A_overall
         for i in range(MAX_NUM_FUS):
             obs_high.extend([1,1,1])
@@ -118,7 +116,8 @@ class WorkshopEnv(gym.Env):
                     "due_date": due_date,
                     "route": route,
                     "to_do": size,
-                    "complete": 0
+                    "complete": 0,
+                    "complete_true": False
                     }
         self.Order_spare = MAX_NUM_ORDERS - self.num_orders
         self.working = 0
@@ -151,10 +150,12 @@ class WorkshopEnv(gym.Env):
             obs.append(self.orders[i]["complete"]/size)
             obs.append(norm_ttd)
             first_fu = self.orders[i]["route"][0].fu_name
+            first_fu_idx = self.fu_config[first_fu]["index"] / MAX_NUM_FUS # normalise FU index to [0,1]
+            obs.append(first_fu_idx)
+
 
         for _ in range(self.Order_spare):
-            obs.extend([0,0,0]) # add in dummy values for missing orders
-            obs.extend([0] * MAX_NUM_FUS) # add in dummy values for missing orders for each FU
+            obs.extend([0,0,0,0]) # add in dummy values for missing orders
 
         for fu_name in self.FU_names:
             fu = self.fu_config[fu_name]
@@ -190,7 +191,7 @@ class WorkshopEnv(gym.Env):
                 # if FU is busy, use working_on to build label; else blank
                 part_id = self.fu_config[fu_name]["working_on"]
                 if part_id != PartID(0,0):
-                    label = f"O{part_id.order_id}-P{part_id.part_idx}"
+                    label = f"O{part_id.order_id}-P{part_id.part_index}"
                 else:
                     label = ""
                 self.fu_log[fu_name]["idx"].append(label)
@@ -213,19 +214,19 @@ class WorkshopEnv(gym.Env):
             yield req
             self.working += 1
             if machine_id == self.orders[order_id]["route"][0].fu_name: # if first FU in route of that order
-                self.fu_config[machine_id]["busy"] = 1
                 self.orders[order_id]["to_do"] -= 1 # change to only A start
                 part_idx = self.orders[order_id]["size"] - self.orders[order_id]["to_do"]
                 #self.position[order_id][part_idx-1][1] = machine_idx + 1 # add in updates to position
                 self.fu_config[machine_id]["working_on"] = PartID(order_id, part_idx)
             else:                       
-                self.fu_config[machine_id]["busy"] = 1
                 part_idx = self.fu_config[machine_id]["working_on"].part_index
-                
+            service_time = self.service_time(machine_id, order_id)
+            self.fu_config[machine_id]["busy"] = 1
+            self.fu_config[machine_id]["remaining_time"] = service_time
+
 
             self.reward += 0.5 # reward for starting a job
             self.fu_config[machine_id]["start_service_times"].append(self.env.now)
-            service_time = self.service_time(machine_id, order_id)
             yield env.timeout(service_time)
             self.working -= 1
             self.fu_config[machine_id]["working_on"] = PartID(0,0)
@@ -296,11 +297,9 @@ class WorkshopEnv(gym.Env):
                     if self.orders[order_id]["route"][0].fu_name == name and \
                         self.orders[order_id]["start_time"]<=self.env.now and \
                         self.orders[order_id]["to_do"] > 0:
-                        self.fu_config[name]["remaining_time"] = self.service_time(name, order_id)
                         self.env.process(self.job(self.env, name, order_id))
                         self.reward += 1 # reward for starting a job
                     elif order_id in [step.order_id for step in self.fu_config[name]["waiting"]]: # check if order_id called is in the buffer
-                        self.fu_config[name]["remaining_time"] = self.service_time(name, order_id)
                         idx = next(i for i, step in enumerate(self.fu_config[name]["waiting"]) if step.order_id == order_id) # find where in the buffer the job is waiting
                         part_id = self.fu_config[name]["waiting"][idx] # find the part number waiting for that order in the buffer
                         self.parts[part_id]["position"] = name # update position of part in system
@@ -344,10 +343,11 @@ class WorkshopEnv(gym.Env):
             complete_orders += order["complete"]
             lateness_penalty = 0.0
 
-            if order["complete"] == order["size"]:
+            if order["complete"] == order["size"] and order["complete_true"] == False:
+                order["complete_true"] = True
                 lateness = self.env.now - order["due_date"]
-                lateness_penalty += 0.01 * lateness
-                self.reward -= lateness
+                lateness_penalty += 0.5 * lateness
+                self.reward -= lateness_penalty
         if total_orders == complete_orders:
             terminated = True
             avg_util = 0
