@@ -1,5 +1,5 @@
-from Final_1_Scalable_Factory import WorkshopEnv as Case3
-from Case_study_1 import WorkshopEnv as Case2
+from Final_2_Buffered_Factory import WorkshopEnv as Case3
+from Final_1_Scalable_Factory import WorkshopEnv as Case2
 from Task22 import WorkshopEnv as Case1
 
 case_studies = {
@@ -14,6 +14,7 @@ import csv
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from collections import namedtuple
+from Final_2_Buffered_Factory import PartID, MAX_BUFFER_SIZE
 RouteStep = namedtuple("RouteStep", ["fu_name", "service_time"])
 
 print("Which case study do you want to run?")
@@ -28,7 +29,7 @@ else:
 model_file_name = input("Enter the model file name and folder path to load (e.g., './logs/Case_1_ppo_factory_policy_1500000_steps.zip'): ")
 
 
-def FU(index, default_service_time):
+def FU(case, index, default_service_time):
     return {
         "index": index,
         "default_service_time": default_service_time,
@@ -40,8 +41,8 @@ def FU(index, default_service_time):
         "waiting_times": [],
         "system_times": [],
         "working_time": 0.0,
-        "waiting": [], # identifies which FUs want to send an item 
-        "working_on": [0,0],
+        "waiting": [PartID(0,0)]*MAX_BUFFER_SIZE if case==3 else [],
+        "working_on": PartID(0,0) if case==3 else [0,0],
         "util_rate": 0.0
     }
 
@@ -56,7 +57,7 @@ orders = "./orders/Case{case_study}_orders.csv".format(case_study=case_study)
 my_orders = {}
 
 if case_study != "1":
-    FUs = "./FUs/Case{case_study}_FUs.csv".format(case_study=case_study)
+    FUs = "./FUs/Case2_FUs.csv".format(case_study=case_study)
     my_FU = {}
     with open(FUs, "r") as f:
         reader = csv.reader(f)
@@ -65,7 +66,7 @@ if case_study != "1":
             fu_name = row[0]
             index = int(row[1])
             default_service_time = float(row[2])
-            my_FU[fu_name] = FU(index, default_service_time)
+            my_FU[fu_name] = FU(int(case_study), index, default_service_time)
 
     with open(orders, "r") as f:
         reader = csv.reader(f)
@@ -199,7 +200,7 @@ for i, fu_name in enumerate(graph_FUs):
                 order_id_str = ''.join(filter(str.isdigit, current_job.split('-')[0]))
                 order_id = int(order_id_str) if order_id_str else None
                 job_color = color_map.get(order_id, "gray")
-                
+                part_idx = current_job.split('-')[1]
                 # Draw the bar
                 ax.broken_barh([(start_time, duration)], (i - 0.35, 0.7), 
                                facecolors=job_color, edgecolor='black', linewidth=0.5)
@@ -207,7 +208,7 @@ for i, fu_name in enumerate(graph_FUs):
                 # 2. Readable Labels: Only show the Order ID (e.g., "O1")
                 # and only if the block is wide enough to fit it
                 if duration > 1:
-                    ax.text(start_time + duration/2, i, f"{current_job}", 
+                    ax.text(start_time + duration/2, i, f"{part_idx}", 
                             ha='center', va='center', color='white', 
                             fontweight='bold', fontsize=16)
             

@@ -1,12 +1,11 @@
 FU, index, default_service_time
-"A": FU(1, 4), # bandsaw
-    "B": FU(2, 5), # CNC milling
-    "C": FU(3, 2), # CNC lathe
-    "D": FU(4, 3), # Manual Milling
-    "E": FU(5, 3), # Drilling press and tapping
-    "F": FU(6, 2), # Welding station
-    "G": FU(7, 4), # Grinding and deburring station 
-    "H": FU(8, 2), # Inspection station
-    "I": FU(9, 3), # CNC plasma cutting
-    "J": FU(10, 2), # Paint booth
-}
+A, 1, 4
+B, 2, 5
+C, 3, 2
+D, 4, 3
+E, 5, 3
+F, 6, 2
+G, 7, 4
+H, 8, 2
+I, 9, 3
+J, 10, 2

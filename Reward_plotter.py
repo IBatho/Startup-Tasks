@@ -5,7 +5,7 @@ import pandas as pd
 
 data = pd.read_csv("./Case1/Case1_reward.csv")
 data = data.sort_values("Step").drop_duplicates(subset="Step", keep="last").reset_index(drop=True)
-x = data["Step"]
+x = data["Step"] / 1e6
 y = data["Value"]
 trendline_y = y.rolling(window=10, min_periods=1).mean()
 
@@ -18,10 +18,10 @@ plt.legend(
     loc='lower right',     # Moves it so it doesn't overlap data
     labelspacing=1.2      # Adds vertical space between entries
 )
-plt.xlabel("Time-steps", fontsize=30, fontweight="bold")
+plt.xlabel("Time-steps (×10⁶)", fontsize=30, fontweight="bold")
 plt.ylabel("Mean Episode Reward", fontsize=30, fontweight="bold")
 plt.xticks(fontsize=20)
 plt.yticks(fontsize=20)
-plt.title("PPO: Graph of Mean Episode Reward During Model Training", fontsize=30, fontweight="bold")
+plt.title("Case Study 3 PPO:\n Graph of Mean Episode Reward During Model Training", fontsize=30, fontweight="bold")
 plt.grid(True, linestyle="--", alpha=0.7)
 plt.show()
